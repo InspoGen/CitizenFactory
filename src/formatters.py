@@ -19,6 +19,12 @@ class OutputFormatter:
     """输出格式化器"""
 
     @staticmethod
+    def _remove_non_digits(text: str) -> str:
+        """移除字符串中的非数字字符"""
+        import re
+        return re.sub(r'\D', '', text) if text else ''
+
+    @staticmethod
     def format_json(data: Dict[str, Any], indent: int = 2) -> str:
         """
         格式化为JSON
@@ -69,9 +75,9 @@ class OutputFormatter:
 
         # 基本信息
         name = data["name"]
-        lines.append(f"姓名: {name['last_name']}, {name['first_name']}")
+        lines.append(f"姓名 (Firstname Lastname): {name['first_name']} {name['last_name']}")
         lines.append(f"性别: {'男' if data['gender'] == 'male' else '女'}")
-        lines.append(f"生日: {data['birthday']}")
+        lines.append(f"生日 (yyyymmdd): {data['birthday']}")
         lines.append(f"国家: {data['country']}")
         lines.append(f"州/地区: {data['state']}")
         lines.append("")
@@ -79,6 +85,7 @@ class OutputFormatter:
         # 联系信息
         lines.append("联系信息:")
         lines.append(f"  电话: {data['phone']}")
+        lines.append(f"  电话（纯数字）: {OutputFormatter._remove_non_digits(data['phone'])}")
         lines.append(f"  邮箱: {data['email']}")
         lines.append(f"  地址: {data['address']['full_address']}")
         lines.append("")
@@ -86,6 +93,7 @@ class OutputFormatter:
         # 身份信息
         lines.append("身份信息:")
         lines.append(f"  社会保障号: {data['ssn']['number']}")
+        lines.append(f"  社会保障号（纯数字）: {OutputFormatter._remove_non_digits(data['ssn']['number'])}")
 
         # SSN验证状态 - 简化显示
         if data['ssn']['verified']:
@@ -105,8 +113,8 @@ class OutputFormatter:
             lines.append("  高中:")
             lines.append(f"    学校: {hs['name']} ({hs['abbreviation']})")
             lines.append(f"    地址: {hs['address']}")
-            lines.append(f"    入学时间: {hs['start_date']}")
-            lines.append(f"    毕业时间: {hs['graduation_date']}")
+            lines.append(f"    入学时间 (yyyymm): {hs['start_date']}")
+            lines.append(f"    毕业时间 (yyyymm): {hs['graduation_date']}")
 
         if "college" in education:
             college = education["college"]
@@ -114,8 +122,8 @@ class OutputFormatter:
             lines.append(
                 f"    学校: {college['name']} ({college['abbreviation']})")
             lines.append(f"    地址: {college['address']}")
-            lines.append(f"    入学时间: {college['start_date']}")
-            lines.append(f"    毕业时间: {college['graduation_date']}")
+            lines.append(f"    入学时间 (yyyymm): {college['start_date']}")
+            lines.append(f"    毕业时间 (yyyymm): {college['graduation_date']}")
 
         lines.append("")
 
@@ -138,7 +146,7 @@ class OutputFormatter:
         """格式化父母信息为文本"""
         lines = []
         lines.append(f"{relationship}信息：")
-        lines.append(f"姓名：{parent_data['name']['last_name']} {parent_data['name']['first_name']}")
+        lines.append(f"姓名 (Firstname Lastname)：{parent_data['name']['first_name']} {parent_data['name']['last_name']}")
         
         # 计算年龄
         birthday = parent_data["birthday"]
@@ -151,9 +159,10 @@ class OutputFormatter:
         if current_date.month < birth_month or (current_date.month == birth_month and current_date.day < birth_day):
             age -= 1
         
-        lines.append(f"生日：{birth_year}年{birth_month}月{birth_day}日")
+        lines.append(f"生日 (yyyymmdd)：{birthday} ({birth_year}年{birth_month}月{birth_day}日)")
         lines.append(f"年龄：{age}岁")
         lines.append(f"电话：{parent_data['phone']}")
+        lines.append(f"电话（纯数字）：{OutputFormatter._remove_non_digits(parent_data['phone'])}")
         lines.append(f"邮箱：{parent_data['email']}")
         lines.append(f"地址：{parent_data['address']['full_address']}")
         
@@ -167,6 +176,7 @@ class OutputFormatter:
             ssn_verified = False
         
         lines.append(f"社保号：{ssn_number}")
+        lines.append(f"社保号（纯数字）：{OutputFormatter._remove_non_digits(ssn_number)}")
         if ssn_verified:
             lines.append("  SSN验证状态: ✓ 在线验证通过")
         else:

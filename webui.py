@@ -99,7 +99,7 @@ def get_basic_info_from_file(file_path):
             data = json.load(f)
 
         name = data.get("name", {})
-        full_name = f"{name.get('last_name', '')} {name.get('first_name', '')}"
+        full_name = f"{name.get('first_name', '')} {name.get('last_name', '')}"
 
         # 计算年龄
         birthday = data.get("birthday", "")
@@ -243,6 +243,21 @@ def get_person_detail():
 
         return jsonify({"success": True, "person": person_data})
 
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route('/api/format_text', methods=['POST'])
+def format_text():
+    """将人员数据格式化为text格式"""
+    try:
+        person_data = request.json
+        if not person_data:
+            return jsonify({"success": False, "error": "缺少人员数据"})
+        
+        # 使用OutputFormatter格式化为text
+        text_output = OutputFormatter.format_text(person_data)
+        return jsonify({"success": True, "text": text_output})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 

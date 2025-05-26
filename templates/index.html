@@ -907,7 +907,7 @@
                 }
 
                 displayPersonDetail(personData);
-                modalTitle.textContent = `${personData.name.last_name} ${personData.name.first_name} - 详细信息`;
+                modalTitle.textContent = `${personData.name.first_name} ${personData.name.last_name} - 详细信息`;
                 
             } catch (error) {
                 console.error('加载详情失败:', error);
@@ -932,8 +932,8 @@
                             ${person.gender === 'male' ? '男' : '女'}
                         </div>
                         <div class="detail-item">
-                            <strong>生日</strong>
-                            ${formatBirthday(person.birthday)}
+                            <strong>生日 (yyyymmdd)</strong>
+                            ${person.birthday} (${formatBirthday(person.birthday)})
                         </div>
                         <div class="detail-item">
                             <strong>年龄</strong>
@@ -956,6 +956,10 @@
                         <div class="detail-item">
                             <strong>电话</strong>
                             ${person.phone}
+                        </div>
+                        <div class="detail-item">
+                            <strong>电话（纯数字）</strong>
+                            ${removeNonDigits(person.phone)}
                         </div>
                         <div class="detail-item">
                             <strong>邮箱</strong>
@@ -995,6 +999,10 @@
                             <strong>社会保障号</strong>
                             ${person.ssn.number}${person.ssn && person.ssn.verified ? ' <span class="verified-icon" style="color: #28a745; font-weight: bold;" title="SSN在线验证通过">✓</span>' : ''}
                         </div>
+                        <div class="detail-item">
+                            <strong>社会保障号（纯数字）</strong>
+                            ${removeNonDigits(person.ssn.number)}
+                        </div>
                     </div>
                 </div>
 
@@ -1027,12 +1035,12 @@
                             ${person.education.high_school.address}
                         </div>
                         <div class="detail-item">
-                            <strong>入学时间</strong>
-                            ${formatDate(person.education.high_school.start_date)}
+                            <strong>入学时间 (yyyymm)</strong>
+                            ${person.education.high_school.start_date} (${formatDate(person.education.high_school.start_date)})
                         </div>
                         <div class="detail-item">
-                            <strong>毕业时间</strong>
-                            ${formatDate(person.education.high_school.graduation_date)}
+                            <strong>毕业时间 (yyyymm)</strong>
+                            ${person.education.high_school.graduation_date} (${formatDate(person.education.high_school.graduation_date)})
                         </div>
                     </div>
                 </div>
@@ -1057,12 +1065,12 @@
                             ${person.education.college.address}
                         </div>
                         <div class="detail-item">
-                            <strong>入学时间</strong>
-                            ${formatDate(person.education.college.start_date)}
+                            <strong>入学时间 (yyyymm)</strong>
+                            ${person.education.college.start_date} (${formatDate(person.education.college.start_date)})
                         </div>
                         <div class="detail-item">
-                            <strong>毕业时间</strong>
-                            ${formatDate(person.education.college.graduation_date)}
+                            <strong>毕业时间 (yyyymm)</strong>
+                            ${person.education.college.graduation_date} (${formatDate(person.education.college.graduation_date)})
                         </div>
                     </div>
                 </div>
@@ -1080,8 +1088,8 @@
                                 ${person.parents.father.name.first_name} ${person.parents.father.name.last_name}
                             </div>
                             <div class="detail-item">
-                                <strong>生日</strong>
-                                ${formatBirthday(person.parents.father.birthday)}
+                                <strong>生日 (yyyymmdd)</strong>
+                                ${person.parents.father.birthday} (${formatBirthday(person.parents.father.birthday)})
                             </div>
                             <div class="detail-item">
                                 <strong>年龄</strong>
@@ -1090,6 +1098,10 @@
                             <div class="detail-item">
                                 <strong>电话</strong>
                                 ${person.parents.father.phone}
+                            </div>
+                            <div class="detail-item">
+                                <strong>电话（纯数字）</strong>
+                                ${removeNonDigits(person.parents.father.phone)}
                             </div>
                             <div class="detail-item">
                                 <strong>邮箱</strong>
@@ -1102,6 +1114,10 @@
                             <div class="detail-item">
                                 <strong>社保号</strong>
                                 ${person.parents.father.ssn.number}${person.parents.father.ssn && person.parents.father.ssn.verified ? ' <span class="verified-icon" style="color: #28a745; font-weight: bold;" title="SSN在线验证通过">✓</span>' : ''}
+                            </div>
+                            <div class="detail-item">
+                                <strong>社保号（纯数字）</strong>
+                                ${removeNonDigits(person.parents.father.ssn.number)}
                             </div>
                         </div>
                     </div>
@@ -1118,8 +1134,8 @@
                                 ${person.parents.mother.name.first_name} ${person.parents.mother.name.last_name}
                             </div>
                             <div class="detail-item">
-                                <strong>生日</strong>
-                                ${formatBirthday(person.parents.mother.birthday)}
+                                <strong>生日 (yyyymmdd)</strong>
+                                ${person.parents.mother.birthday} (${formatBirthday(person.parents.mother.birthday)})
                             </div>
                             <div class="detail-item">
                                 <strong>年龄</strong>
@@ -1128,6 +1144,10 @@
                             <div class="detail-item">
                                 <strong>电话</strong>
                                 ${person.parents.mother.phone}
+                            </div>
+                            <div class="detail-item">
+                                <strong>电话（纯数字）</strong>
+                                ${removeNonDigits(person.parents.mother.phone)}
                             </div>
                             <div class="detail-item">
                                 <strong>邮箱</strong>
@@ -1140,6 +1160,10 @@
                             <div class="detail-item">
                                 <strong>社保号</strong>
                                 ${person.parents.mother.ssn.number}${person.parents.mother.ssn && person.parents.mother.ssn.verified ? ' <span class="verified-icon" style="color: #28a745; font-weight: bold;" title="SSN在线验证通过">✓</span>' : ''}
+                            </div>
+                            <div class="detail-item">
+                                <strong>社保号（纯数字）</strong>
+                                ${removeNonDigits(person.parents.mother.ssn.number)}
                             </div>
                         </div>
                     </div>
@@ -1241,82 +1265,64 @@
             return stateNames[stateCode] || stateCode;
         }
 
+        // 移除字符串中的非数字字符
+        function removeNonDigits(str) {
+            return str ? str.replace(/\D/g, '') : '';
+        }
+
         // 复制人员数据
-        function copyPersonData(format) {
+        async function copyPersonData(format) {
             if (window.currentPersonData) {
                 let textString = '';
                 const person = window.currentPersonData;
                 
-                // Helper function to get verification status as text
-                function getVerificationText(ssnObj) {
-                    return ssnObj && ssnObj.verified ? ' (已验证)' : '';
-                }
-                
                 if (format === 'json') {
-                    textString = JSON.stringify(person, null, 2);
-                } else if (format === 'txt') {
-                    // 按照卡片显示的顺序格式化文本
-                    textString = `基本信息：
-姓名：${person.name.last_name} ${person.name.first_name}
-性别：${person.gender === 'male' ? '男' : '女'}
-年龄：${calculateAge(person.birthday)}岁
-生日：${formatBirthday(person.birthday)}
-国家：${person.country}
-州：${getStateName(person.state)} (${person.state})
-
-联系信息：
-电话：${person.phone}
-邮箱：${person.email}
-地址：${person.address.full_address}
-
-身份信息：
-社会保障号：${person.ssn.number}${getVerificationText(person.ssn)}
-
-教育信息：
-教育水平：${getEducationLevel(person.education.education_level)}`;
-
-                    if (person.education.high_school) {
-                        textString += `
-高中：${person.education.high_school.name} (${person.education.high_school.abbreviation})
-高中地址：${person.education.high_school.address}
-高中入学：${formatDate(person.education.high_school.start_date)}
-高中毕业：${formatDate(person.education.high_school.graduation_date)}`;
-                    }
-
-                    if (person.education.college) {
-                        textString += `
-大学：${person.education.college.name} (${person.education.college.abbreviation})
-大学地址：${person.education.college.address}
-大学入学：${formatDate(person.education.college.start_date)}
-大学毕业：${formatDate(person.education.college.graduation_date)}`;
-                    }
-
+                    // 按照卡片显示顺序重新组织JSON结构
+                    const orderedPerson = {
+                        name: person.name,
+                        gender: person.gender,
+                        birthday: person.birthday,
+                        country: person.country,
+                        state: person.state,
+                        phone: person.phone,
+                        email: person.email,
+                        address: person.address,
+                        ssn: person.ssn,
+                        education: person.education
+                    };
+                    
+                    // 如果有父母信息，添加到最后
                     if (person.parents) {
-                        if (person.parents.father) {
-                            textString += `
-
-父亲信息：
-姓名：${person.parents.father.name.last_name} ${person.parents.father.name.first_name}
-生日：${formatBirthday(person.parents.father.birthday)}
-年龄：${calculateAge(person.parents.father.birthday)}岁
-电话：${person.parents.father.phone}
-邮箱：${person.parents.father.email}
-地址：${person.parents.father.address.full_address}
-社保号：${person.parents.father.ssn.number}${getVerificationText(person.parents.father.ssn)}`;
+                        orderedPerson.parents = person.parents;
+                    }
+                    
+                    // 如果有state_info，添加到最后
+                    if (person.state_info) {
+                        orderedPerson.state_info = person.state_info;
+                    }
+                    
+                    textString = JSON.stringify(orderedPerson, null, 2);
+                } else if (format === 'txt') {
+                    // 使用后端的text格式化功能
+                    try {
+                        const response = await fetch('/api/format_text', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(person)
+                        });
+                        
+                        const result = await response.json();
+                        if (result.success) {
+                            textString = result.text;
+                        } else {
+                            throw new Error(result.error);
                         }
-
-                        if (person.parents.mother) {
-                            textString += `
-
-母亲信息：
-姓名：${person.parents.mother.name.last_name} ${person.parents.mother.name.first_name}
-生日：${formatBirthday(person.parents.mother.birthday)}
-年龄：${calculateAge(person.parents.mother.birthday)}岁
-电话：${person.parents.mother.phone}
-邮箱：${person.parents.mother.email}
-地址：${person.parents.mother.address.full_address}
-社保号：${person.parents.mother.ssn.number}${getVerificationText(person.parents.mother.ssn)}`;
-                        }
+                    } catch (error) {
+                        console.error('格式化文本失败:', error);
+                        showMessage('格式化文本失败，请重试', 'error');
+                        return;
                     }
                 }
                 
