@@ -145,11 +145,25 @@ class HighGroupLoader:
         valid_groups = self.get_valid_groups_for_date(area, assignment_year, 6)
 
         if not valid_groups:
-            # 如果没有数据，使用保守估计
-            if birth_year < 1990:
-                return min(20, max(1, (birth_year - 1970) * 2))
+            # 如果没有数据，使用改进的备用估计
+            # 现在我们有1985年开始的数据，可以做更好的估计
+            available_years = self.get_available_years()
+            if available_years and assignment_year < min(available_years):
+                # 对于早于数据范围的年份，使用保守估计
+                if birth_year < 1960:
+                    return min(10, max(1, (birth_year - 1940) // 2))  # 非常早期，组号很小
+                elif birth_year < 1970:
+                    return min(20, max(1, (birth_year - 1950) // 1.5))  # 早期，组号较小
+                elif birth_year < 1980:
+                    return min(30, max(1, (birth_year - 1960)))  # 中期，组号中等
+                else:
+                    return min(40, max(1, (birth_year - 1970) * 1.5))  # 较晚期
             else:
-                return min(50, max(1, (birth_year - 1970) * 3))
+                # 原有的备用逻辑，用于其他情况
+                if birth_year < 1990:
+                    return min(20, max(1, (birth_year - 1970) * 2))
+                else:
+                    return min(50, max(1, (birth_year - 1970) * 3))
 
         # 在有效组号中随机选择，但偏向较早的组号
         if len(valid_groups) <= 5:
@@ -182,22 +196,26 @@ class HighGroupLoader:
             expected_ssn_year_min = birth_year
             expected_ssn_year_max = birth_year + 1
 
-        # 检查该人应该在我们的数据范围内
-        our_data_start_year = 2003
-        our_data_end_year = 2011
+        # 动态获取实际数据范围（包括推测数据）
+        available_years = self.get_available_years()
+        if not available_years:
+            return True  # 没有数据时假设有效
+            
+        our_data_start_year = min(available_years)  # 现在是1985年
+        our_data_end_year = max(available_years)    # 现在是2011年
 
-        # 如果该人应该在我们的数据范围之前获得SSN，我们无法验证
+        # 如果该人应该在我们的数据范围之前获得SSN，使用历史合理性检查
         if expected_ssn_year_max < our_data_start_year:
-            # 这种情况下，我们只能做基本的合理性检查
-            # 对于很早就应该获得SSN的人，组号应该相对较小
-            if birth_year < 1970:
-                return group <= 20  # 1970年前出生的人，组号应该很小
-            elif birth_year < 1980:
-                return group <= 40  # 1970-1980年出生的人，组号相对较小
+            # 对于应该在1985年前获得SSN的人，使用历史合理性检查
+            # 这主要适用于1960年代及更早出生的人
+            if birth_year < 1960:
+                return group <= 15  # 1960年前出生的人，组号应该很小
+            elif birth_year < 1970:
+                return group <= 25  # 1960-1970年出生的人，组号相对较小
             else:
-                return True  # 其他情况假设合理
-
-        # 如果该人应该在我们的数据范围内获得SSN，则可以使用数据验证
+                return group <= 35  # 1970-1985年可能获得SSN的人
+                
+        # 如果该人应该在我们的数据范围内获得SSN，则可以使用精确数据验证
         if expected_ssn_year_min <= our_data_end_year:
             assignment_date = self.estimate_group_assignment_date(area, group)
 

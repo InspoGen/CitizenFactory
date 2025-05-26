@@ -206,4 +206,42 @@ uploads/
 
 # 性能测试文件
 benchmark_*.txt
-performance_*.log 
+performance_*.log
+
+# SSN推测相关文件和数据
+# ======================================
+
+# SSN推测程序目录（包含敏感的推测算法和数据）
+ssn_prediction/
+
+# High Group数据备份（原始数据保护）
+High Group-True/
+
+# 2000年前的推测数据（包含在High Group中的早期数据文件）
+# 这些文件是基于算法推测生成的，不是官方数据
+High Group/198*/
+High Group/199*/
+High Group/2000/
+High Group/2001/
+High Group/2002/
+
+# 推测相关的配置和输出文件
+prediction_config.json
+prediction_output.txt
+prediction_log.txt
+extrapolation_*.json
+ssn_prediction_*.csv
+
+# 验证测试文件（可能包含敏感的SSN测试数据）
+validate_*.txt
+validation_*.csv
+test_ssn_*.txt
+
+# 推测质量报告文件
+prediction_quality_*.txt
+r_squared_analysis.txt
+extrapolation_report_*.json
+
+# 推测产生的文件
+High Group/extrapolation_report.json
+High Group/summary.txt 

@@ -29,6 +29,14 @@ def parse_arguments():
   python main.py --country US --state TX --format text
   python main.py --format yaml --output output/person.yaml
   python main.py --config config/development.json
+  python main.py --show-high-group-info  # 显示SSN数据范围信息
+
+数据范围:
+  本系统使用扩展的High Group数据(1985-2011)，包含：
+  • 推测数据: 1985-2002年（基于PNAS 2009论文方法）
+  • 原始数据: 2003-2011年（SSA官方数据）
+  
+  可为1985年以后出生的人生成历史准确的SSN，显著提升早期出生人员的数据质量。
         """
     )
 
@@ -119,6 +127,30 @@ def parse_arguments():
         help="启用SSN在线验证功能，确保生成的SSN有效（可能较慢）"
     )
 
+    parser.add_argument(
+        "--show-high-group-info",
+        action="store_true",
+        help="显示当前High Group数据统计信息（包括推测数据范围）"
+    )
+
+    parser.add_argument(
+        "--validate-ssn",
+        type=str,
+        help="验证指定SSN的有效性 (格式: XXX-XX-XXXX 或 XXXXXXXXX)"
+    )
+
+    parser.add_argument(
+        "--validate-birth-date",
+        type=str,
+        help="验证SSN时的出生日期 (格式: YYYY-MM-DD)"
+    )
+
+    parser.add_argument(
+        "--validate-birth-state",
+        type=str,
+        help="验证SSN时的出生州 (可选，用于交叉验证)"
+    )
+
     return parser.parse_args()
 
 
@@ -165,6 +197,164 @@ def main():
     except Exception as e:
         print(f"初始化失败: {e}", file=sys.stderr)
         sys.exit(1)
+
+    # 处理High Group信息显示选项
+    if args.show_high_group_info:
+        try:
+            from src.high_group_loader import HighGroupLoader
+            high_group_loader = HighGroupLoader()
+            stats = high_group_loader.get_statistics()
+            available_years = high_group_loader.get_available_years()
+            
+            print("=" * 60)
+            print("High Group 数据统计信息")
+            print("=" * 60)
+            print(f"数据来源目录: High Group/")
+            print(f"总文件数量: {stats['total_files']}")
+            print(f"覆盖区域数量: {stats['total_areas']}")
+            print(f"时间范围: {stats['date_range']}")
+            print(f"年份跨度: {min(available_years)} - {max(available_years)} ({max(available_years) - min(available_years) + 1} 年)")
+            
+            # 区分原始数据和推测数据
+            original_years = [year for year in available_years if year >= 2003]
+            predicted_years = [year for year in available_years if year < 2003]
+            
+            print()
+            print("数据构成:")
+            if predicted_years:
+                print(f"  • 推测数据: {min(predicted_years)} - {max(predicted_years)} ({len(predicted_years)} 年)")
+                print(f"    基于PNAS 2009论文方法推测，使用线性回归外推")
+            if original_years:
+                print(f"  • 原始数据: {min(original_years)} - {max(original_years)} ({len(original_years)} 年)")
+                print(f"    来自SSA官方发布的High Group清单")
+            
+            print()
+            print("系统能力:")
+            print(f"  • 可为 1985-2011 年出生的人生成历史准确的SSN")
+            print(f"  • 支持精确的SSN时间合理性验证")
+            print(f"  • 覆盖 {stats['total_areas']} 个SSN区域号")
+            print(f"  • 总计 {stats['total_files']} 个月度数据文件")
+            print("=" * 60)
+            
+        except Exception as e:
+            print(f"获取High Group信息失败: {e}", file=sys.stderr)
+        return
+
+    # 处理SSN验证选项
+    if args.validate_ssn:
+        if not args.validate_birth_date:
+            print("错误：验证SSN时必须提供出生日期 (--validate-birth-date)", file=sys.stderr)
+            sys.exit(1)
+        
+        try:
+            # 创建简化的验证器（避免重复初始化）
+            import re
+            from src.high_group_loader import HighGroupLoader
+            
+            # 解析SSN
+            ssn_digits = re.sub(r'[^0-9]', '', args.validate_ssn)
+            if len(ssn_digits) != 9:
+                print(f"错误：SSN必须是9位数字，当前为 {len(ssn_digits)} 位", file=sys.stderr)
+                sys.exit(1)
+            
+            area = int(ssn_digits[:3])
+            group = int(ssn_digits[3:5])
+            serial = int(ssn_digits[5:])
+            
+            # 解析生日
+            try:
+                parts = args.validate_birth_date.split('-')
+                if len(parts) != 3:
+                    raise ValueError("生日格式必须为 YYYY-MM-DD")
+                birth_year = int(parts[0])
+                birth_month = int(parts[1])
+                birth_day = int(parts[2])
+            except ValueError as e:
+                print(f"错误：生日格式不正确: {e}", file=sys.stderr)
+                sys.exit(1)
+            
+            # 基础格式验证
+            errors = []
+            if area == 0 or area == 666 or area >= 900:
+                errors.append("区域号无效")
+            if group == 0:
+                errors.append("组号不能为00")
+            if serial == 0:
+                errors.append("序列号不能为0000")
+            
+            # 使用High Group数据验证
+            high_group_loader = HighGroupLoader()
+            timing_valid = high_group_loader.validate_ssn_timing(
+                area, group, serial, birth_year, birth_month
+            )
+            
+            if not timing_valid:
+                errors.append("SSN发放时间与出生日期不匹配")
+            
+            # 获取预期州
+            expected_state = None
+            try:
+                # 默认使用US数据进行验证
+                ssn_data = data_loader.load_ssn("US")
+                state_ranges = ssn_data["US"]["structure"]["area_number"]["state_ranges"]
+                for state, ranges in state_ranges.items():
+                    for range_str in ranges:
+                        if "-" in range_str:
+                            start, end = map(int, range_str.split("-"))
+                            if start <= area <= end:
+                                expected_state = state
+                                break
+                        else:
+                            if area == int(range_str):
+                                expected_state = state
+                                break
+                    if expected_state:
+                        break
+            except Exception:
+                pass
+            
+            # 显示验证结果
+            print("=" * 50)
+            print("SSN验证结果")
+            print("=" * 50)
+            print(f"SSN: {args.validate_ssn}")
+            print(f"生日: {args.validate_birth_date}")
+            if args.validate_birth_state:
+                print(f"出生州: {args.validate_birth_state}")
+            print(f"区域号: {area}")
+            print(f"组号: {group}")
+            print(f"序列号: {serial}")
+            if expected_state:
+                print(f"对应州: {expected_state}")
+            
+            # 验证状态
+            is_valid = len(errors) == 0
+            status = "✓ 有效" if is_valid else "✗ 无效"
+            print(f"验证状态: {status}")
+            
+            if errors:
+                print("\n错误:")
+                for error in errors:
+                    print(f"  • {error}")
+            
+            # 州验证警告
+            if expected_state and args.validate_birth_state:
+                if args.validate_birth_state.upper() != expected_state.upper():
+                    print(f"\n警告:")
+                    print(f"  • SSN区域号{area}通常对应{expected_state}州，但您指定的是{args.validate_birth_state}州")
+            
+            # 估计分配时间
+            assignment_date = high_group_loader.estimate_group_assignment_date(area, group)
+            if assignment_date:
+                assign_year, assign_month = assignment_date
+                print(f"\n估计分配时间: {assign_year}-{assign_month:02d}")
+            
+            print("=" * 50)
+            
+        except Exception as e:
+            print(f"验证过程中发生错误: {e}", file=sys.stderr)
+            sys.exit(1)
+        return
 
     # 处理列表选项
     if args.list_countries:
@@ -221,6 +411,22 @@ def main():
 
     # 生成虚拟公民信息
     try:
+        # 显示系统状态（简短版本）
+        if not any([args.list_countries, args.list_states, args.show_high_group_info]):
+            try:
+                available_years = generator.high_group_loader.get_available_years()
+                if available_years:
+                    min_year = min(available_years)
+                    max_year = max(available_years)
+                    total_years = max_year - min_year + 1
+                    predicted_years = len([y for y in available_years if y < 2003])
+                    if predicted_years > 0:
+                        print(f"ℹ️  系统使用扩展High Group数据: {min_year}-{max_year} ({total_years}年, 含{predicted_years}年推测数据)")
+                    else:
+                        print(f"ℹ️  系统使用High Group数据: {min_year}-{max_year} ({total_years}年)")
+            except:
+                pass  # 静默失败，不影响主要功能
+        
         people = []
         for i in range(count):
             person_data = generator.generate_person(
