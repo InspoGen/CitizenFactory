@@ -1,0 +1,95 @@
+Adelphi University | AU | university | 1 South Ave, Garden City, NY 11530-0701
+Albany Medical College | AMC | medical_college | 47 New Scotland Ave, Albany, NY 12208-3479
+Alfred University | AU | university | 1 Saxon Dr, Alfred, NY 14802-1205
+Barnard College | BC | college | 3009 Broadway, New York, NY 10027-6598
+Baruch College | CUNY Baruch | college | 55 Lexington Ave, New York, NY 10010-5585
+Binghamton University | SUNY Binghamton | university | 4400 Vestal Pkwy E, Vestal, NY 13902-6000
+Brooklyn College | CUNY Brooklyn | college | 2900 Bedford Ave, Brooklyn, NY 11210-2889
+Canisius College | CC | college | 2001 Main St, Buffalo, NY 14208-1517
+Clarkson University | CU | university | 8 Clarkson Ave, Potsdam, NY 13699-5590
+Colgate University | CU | university | 13 Oak Dr, Hamilton, NY 13346-1398
+College of Staten Island | CUNY CSI | college | 2800 Victory Blvd, Staten Island, NY 10314-6609
+Columbia University | CU | university | 116th St & Broadway, New York, NY 10027-6902
+Cornell University | CU | university | 410 Thurston Ave, Ithaca, NY 14850-2488
+CUNY Graduate Center | CUNY GC | graduate_school | 365 5th Ave, New York, NY 10016-4309
+CUNY Hunter College | CUNY Hunter | college | 695 Park Ave, New York, NY 10065-5024
+CUNY Queens College | CUNY Queens | college | 65-30 Kissena Blvd, Queens, NY 11367-1597
+Daemen University | DU | university | 4380 Main St, Amherst, NY 14226-3592
+D’Youville University | DYU | university | 320 Porter Ave, Buffalo, NY 14201-1084
+Fordham University (Rose Hill Campus) | FU | university | 441 E Fordham Rd, Bronx, NY 10458-5149
+Fordham University (Lincoln Center Campus) | FU | university | 113 W 60th St, New York, NY 10023-7484
+Hamilton College | HC | college | 198 College Hill Rd, Clinton, NY 13323-1296
+Hofstra University | HU | university | 100 Hofstra University, Hempstead, NY 11549-1000
+Hunter College | CUNY Hunter | college | 695 Park Ave, New York, NY 10065-5024
+Iona University | IU | university | 715 North Ave, New Rochelle, NY 10801-1890
+Ithaca College | IC | college | 953 Danby Rd, Ithaca, NY 14850-7000
+John Jay College of Criminal Justice | CUNY John Jay | college | 524 W 59th St, New York, NY 10019-1104
+Juilliard School | JS | conservatory | 60 Lincoln Center Plaza, New York, NY 10023-6588
+Le Moyne College | LMC | college | 1419 Salt Springs Rd, Syracuse, NY 13214-1301
+LIU Post | LIU | university | 720 Northern Blvd, Brookville, NY 11548-1300
+Manhattan College | MC | college | 4513 Manhattan College Pkwy, Bronx, NY 10471-4098
+Marist College | MC | college | 3399 North Rd, Poughkeepsie, NY 12601-1387
+New York University | NYU | university | 70 Washington Square South, New York, NY 10012-1019
+Pace University (New York City Campus) | PU | university | 1 Pace Plaza, New York, NY 10038-1598
+Pratt Institute | PI | institute | 200 Willoughby Ave, Brooklyn, NY 11205-3899
+Rensselaer Polytechnic Institute | RPI | university | 110 8th St, Troy, NY 12180-3590
+Rochester Institute of Technology | RIT | university | 1 Lomb Memorial Dr, Rochester, NY 14623-5603
+Siena College | SC | college | 515 Loudon Rd, Loudonville, NY 12211-1462
+Skidmore College | SC | college | 815 N Broadway, Saratoga Springs, NY 12866-1632
+St. Bonaventure University | SBU | university | 3261 W State Rd, St Bonaventure, NY 14778-9800
+St. John Fisher University | SJFU | university | 3690 East Ave, Rochester, NY 14618-3597
+St. John’s University (Queens Campus) | SJU | university | 8000 Utopia Pkwy, Queens, NY 11439-9000
+SUNY Albany | SUNY Albany | university | 1400 Washington Ave, Albany, NY 12222-0100
+SUNY Buffalo | UB | university | 12 Capen Hall, Buffalo, NY 14260-1660
+SUNY Stony Brook | SUNY SB | university | 100 Nicolls Rd, Stony Brook, NY 11794-1901
+Syracuse University | SU | university | 900 South Crouse Ave, Syracuse, NY 13244-5040
+Adelphi University | AU | university | 1 South Ave, Garden City, NY 11530-0701
+Albany Medical College | AMC | medical_college | 47 New Scotland Ave, Albany, NY 12208-3479
+Alfred University | AU | university | 1 Saxon Dr, Alfred, NY 14802-1205
+Bard College | BC | college | 30 Campus Rd, Annandale-on-Hudson, NY 12504-5000
+Barnard College | BC | college | 3009 Broadway, New York, NY 10027-6598
+Baruch College | CUNY Baruch | college | 55 Lexington Ave, New York, NY 10010-5585
+Binghamton University | SUNY Binghamton | university | 4400 Vestal Pkwy E, Binghamton, NY 13902-6000
+Brooklyn College | CUNY Brooklyn | college | 2900 Bedford Ave, Brooklyn, NY 11210-2889
+Canisius College | CC | college | 2001 Main St, Buffalo, NY 14208-1098
+City College of New York | CUNY CCNY | college | 160 Convent Ave, New York, NY 10031-9101
+Clarkson University | CU | university | 8 Clarkson Ave, Potsdam, NY 13699-5590
+Colgate University | CU | university | 13 Oak Dr, Hamilton, NY 13346-1386
+College of Staten Island | CUNY CSI | college | 2800 Victory Blvd, Staten Island, NY 10314-6609
+Columbia University | CU | university | 116th St & Broadway, New York, NY 10027-6902
+Cornell University | CU | university | 410 Thurston Ave, Ithaca, NY 14850-2488
+CUNY Graduate Center | CUNY GC | graduate_school | 365 5th Ave, New York, NY 10016-4309
+CUNY Hunter College | CUNY Hunter | college | 695 Park Ave, New York, NY 10065-5024
+CUNY Queens College | CUNY Queens | college | 65-30 Kissena Blvd, Flushing, NY 11367-1597
+Daemen University | DU | university | 4380 Main St, Amherst, NY 14226-3592
+D’Youville University | DYU | university | 320 Porter Ave, Buffalo, NY 14201-1084
+Fordham University | FU | university | 441 E Fordham Rd, Bronx, NY 10458-5149
+Hamilton College | HC | college | 198 College Hill Rd, Clinton, NY 13323-1218
+Hofstra University | HU | university | 100 Hofstra University, Hempstead, NY 11549-1000
+Iona University | IU | university | 715 North Ave, New Rochelle, NY 10801-1890
+Ithaca College | IC | college | 953 Danby Rd, Ithaca, NY 14850-7000
+John Jay College of Criminal Justice | CUNY John Jay | college | 524 W 59th St, New York, NY 10019-1104
+Juilliard School | JS | conservatory | 60 Lincoln Center Plaza, New York, NY 10023-6588
+Le Moyne College | LMC | college | 1419 Salt Springs Rd, Syracuse, NY 13214-1301
+LIU Post | LIU | university | 720 Northern Blvd, Brookville, NY 11548-1300
+Manhattan College | MC | college | 4513 Manhattan College Pkwy, Riverdale, NY 10471-4098
+Marist College | MC | college | 3399 North Rd, Poughkeepsie, NY 12601-1387
+Nazareth College | NC | college | 4245 East Ave, Rochester, NY 14618-3790
+New York University | NYU | university | 70 Washington Square South, New York, NY 10012-1091
+Pace University | PU | university | 1 Pace Plaza, New York, NY 10038-1598
+Pratt Institute | PI | institute | 200 Willoughby Ave, Brooklyn, NY 11205-3899
+Rensselaer Polytechnic Institute | RPI | university | 110 8th St, Troy, NY 12180-3590
+Rochester Institute of Technology | RIT | university | 1 Lomb Memorial Dr, Rochester, NY 14623-5603
+Skidmore College | SC | college | 815 N Broadway, Saratoga Springs, NY 12866-1632
+St. Bonaventure University | SBU | university | 3261 W State Rd, St. Bonaventure, NY 14778-2288
+St. John Fisher University | SJFU | university | 3690 East Ave, Rochester, NY 14618-3597
+St. John’s University | SJU | university | 8000 Utopia Pkwy, Queens, NY 11439-9000
+St. Lawrence University | SLU | university | 23 Romoda Dr, Canton, NY 13617-1455
+Stony Brook University | SUNY Stony Brook | university | 100 Nicolls Rd, Stony Brook, NY 11794-0001
+SUNY Albany | SUNY Albany | university | 1400 Washington Ave, Albany, NY 12222-0100
+SUNY Buffalo | UB | university | 12 Capen Hall, Buffalo, NY 14260-1660
+SUNY College of Environmental Science and Forestry | SUNY ESF | college | 1 Forestry Dr, Syracuse, NY 13210-2712
+SUNY New Paltz | SUNY New Paltz | college | 1 Hawk Dr, New Paltz, NY 12561-2443
+SUNY Plattsburgh | SUNY Plattsburgh | college | 101 Broad St, Plattsburgh, NY 12901-2681
+Syracuse University | SU | university | 900 S Crouse Ave, Syracuse, NY 13244-5040
+University of Rochester | UR | university | 500 Wilson Blvd, Rochester, NY 14627-0001

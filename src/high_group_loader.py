@@ -1,0 +1,246 @@
+import os
+import json
+from datetime import datetime
+from typing import Dict, List, Tuple, Optional
+import re
+import random
+import logging
+
+# 配置日志记录
+logger = logging.getLogger(__name__)
+
+
+class HighGroupLoader:
+    """加载和管理SSN高组清单历史数据"""
+
+    def __init__(self, high_group_dir: str = "High Group"):
+        self.high_group_dir = high_group_dir
+        self.high_group_data = {}
+        self.group_sequence = self._get_group_sequence()
+        self.load_all_data()
+
+    def _get_group_sequence(self) -> List[int]:
+        """获取SSN组号分配顺序"""
+        sequence = []
+        # 奇数 01-09
+        sequence.extend([1, 3, 5, 7, 9])
+        # 偶数 10-98
+        sequence.extend(range(10, 99, 2))
+        # 偶数 02-08
+        sequence.extend([2, 4, 6, 8])
+        # 奇数 11-99
+        sequence.extend(range(11, 100, 2))
+        return sequence
+
+    def load_all_data(self):
+        """加载所有年份的高组清单数据"""
+        if not os.path.exists(self.high_group_dir):
+            logger.warning(f"警告：高组清单目录 {self.high_group_dir} 不存在")
+            return
+
+        for year_dir in os.listdir(self.high_group_dir):
+            year_path = os.path.join(self.high_group_dir, year_dir)
+            if os.path.isdir(year_path) and year_dir.isdigit():
+                year = int(year_dir)
+                self.high_group_data[year] = {}
+
+                for month_file in os.listdir(year_path):
+                    if month_file.endswith(
+                            '.txt') and month_file[:-4].isdigit():
+                        month = int(month_file[:-4])
+                        file_path = os.path.join(year_path, month_file)
+                        try:
+                            data = self._parse_high_group_file(file_path)
+                            self.high_group_data[year][month] = data
+                        except Exception as e:
+                            logger.error(f"解析文件失败 {file_path}: {e}")
+
+    def _parse_high_group_file(self, file_path: str) -> Dict[int, int]:
+        """解析单个高组清单文件"""
+        data = {}
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # 使用正则表达式提取区域号和组号
+        pattern = r'(\d{3})\s+(\d{2})'
+        matches = re.findall(pattern, content)
+
+        for area_str, group_str in matches:
+            area = int(area_str)
+            group = int(group_str)
+            data[area] = group
+
+        return data
+
+    def get_highest_group(
+            self,
+            area: int,
+            year: int,
+            month: int) -> Optional[int]:
+        """获取指定时间的最高组号"""
+        if year in self.high_group_data and month in self.high_group_data[year]:
+            return self.high_group_data[year][month].get(area)
+        return None
+
+    def get_valid_groups_for_date(
+            self,
+            area: int,
+            year: int,
+            month: int) -> List[int]:
+        """获取指定日期前所有有效的组号"""
+        highest_group = self.get_highest_group(area, year, month)
+        if highest_group is None:
+            return []
+
+        valid_groups = []
+        for group in self.group_sequence:
+            if group <= highest_group:
+                valid_groups.append(group)
+            else:
+                break
+
+        return valid_groups
+
+    def estimate_group_assignment_date(
+            self, area: int, group: int) -> Optional[Tuple[int, int]]:
+        """估算指定组号的分配时间（年，月）"""
+        for year in sorted(self.high_group_data.keys()):
+            for month in sorted(self.high_group_data[year].keys()):
+                highest_group = self.get_highest_group(area, year, month)
+                if highest_group is not None and group <= highest_group:
+                    return (year, month)
+        return None
+
+    def get_group_sequence_position(self, group: int) -> int:
+        """获取组号在分配序列中的位置"""
+        try:
+            return self.group_sequence.index(group)
+        except ValueError:
+            return -1
+
+    def get_suitable_group_for_birth_date(
+            self,
+            area: int,
+            birth_year: int,
+            birth_month: int) -> Optional[int]:
+        """根据出生日期获取合适的组号"""
+        # SSN通常在出生后几个月到几年内分配
+        # 对于1980年代以前：通常在工作年龄(14-18岁)获得
+        # 对于1980年代后：逐渐在更小年龄获得，现在基本出生时就有
+
+        if birth_year < 1980:
+            # 假设在14-18岁获得SSN
+            assignment_year = birth_year + 16
+        elif birth_year < 1990:
+            # 假设在5-14岁获得SSN
+            assignment_year = birth_year + 8
+        elif birth_year < 2000:
+            # 假设在1-5岁获得SSN
+            assignment_year = birth_year + 2
+        else:
+            # 假设出生时或1岁内获得SSN
+            assignment_year = birth_year + 1
+
+        # 获取该时期的有效组号
+        valid_groups = self.get_valid_groups_for_date(area, assignment_year, 6)
+
+        if not valid_groups:
+            # 如果没有数据，使用保守估计
+            if birth_year < 1990:
+                return min(20, max(1, (birth_year - 1970) * 2))
+            else:
+                return min(50, max(1, (birth_year - 1970) * 3))
+
+        # 在有效组号中随机选择，但偏向较早的组号
+        if len(valid_groups) <= 5:
+            return random.choice(valid_groups)
+        else:
+            # 70%概率选择前半部分的组号
+            if random.random() < 0.7:
+                return random.choice(valid_groups[:len(valid_groups) // 2])
+            else:
+                return random.choice(valid_groups[len(valid_groups) // 2:])
+
+    def validate_ssn_timing(self, area: int, group: int, serial: int,
+                            birth_year: int, birth_month: int) -> bool:
+        """验证SSN时间合理性"""
+        # 计算该人应该获得SSN的时间范围
+        if birth_year < 1980:
+            # 1980年前出生：通常在14-18岁获得SSN
+            expected_ssn_year_min = birth_year + 14
+            expected_ssn_year_max = birth_year + 18
+        elif birth_year < 1990:
+            # 1980-1990：通常在5-14岁获得SSN
+            expected_ssn_year_min = birth_year + 5
+            expected_ssn_year_max = birth_year + 14
+        elif birth_year < 2000:
+            # 1990-2000：通常在1-5岁获得SSN
+            expected_ssn_year_min = birth_year + 1
+            expected_ssn_year_max = birth_year + 5
+        else:
+            # 2000年后：通常出生时或1岁内获得SSN
+            expected_ssn_year_min = birth_year
+            expected_ssn_year_max = birth_year + 1
+
+        # 检查该人应该在我们的数据范围内
+        our_data_start_year = 2003
+        our_data_end_year = 2011
+
+        # 如果该人应该在我们的数据范围之前获得SSN，我们无法验证
+        if expected_ssn_year_max < our_data_start_year:
+            # 这种情况下，我们只能做基本的合理性检查
+            # 对于很早就应该获得SSN的人，组号应该相对较小
+            if birth_year < 1970:
+                return group <= 20  # 1970年前出生的人，组号应该很小
+            elif birth_year < 1980:
+                return group <= 40  # 1970-1980年出生的人，组号相对较小
+            else:
+                return True  # 其他情况假设合理
+
+        # 如果该人应该在我们的数据范围内获得SSN，则可以使用数据验证
+        if expected_ssn_year_min <= our_data_end_year:
+            assignment_date = self.estimate_group_assignment_date(area, group)
+
+            if assignment_date is None:
+                return True  # 没有数据时假设有效
+
+            assignment_year, assignment_month = assignment_date
+
+            # 检查分配时间是否在出生后
+            if assignment_year < birth_year or (
+                    assignment_year == birth_year and assignment_month < birth_month):
+                return False
+
+            # 检查分配时间是否在合理范围内
+            if assignment_year < expected_ssn_year_min or assignment_year > expected_ssn_year_max:
+                return False
+
+        return True
+
+    def get_available_years(self) -> List[int]:
+        """获取可用的年份列表"""
+        return sorted(self.high_group_data.keys())
+
+    def get_available_months(self, year: int) -> List[int]:
+        """获取指定年份的可用月份列表"""
+        if year in self.high_group_data:
+            return sorted(self.high_group_data[year].keys())
+        return []
+
+    def get_statistics(self) -> Dict:
+        """获取数据统计信息"""
+        total_files = 0
+        total_areas = set()
+        date_range = []
+
+        for year, months in self.high_group_data.items():
+            for month, data in months.items():
+                total_files += 1
+                total_areas.update(data.keys())
+                date_range.append(f"{year}-{month:02d}")
+
+        return {
+            "total_files": total_files,
+            "total_areas": len(total_areas),
+            "date_range": f"{min(date_range)} 到 {max(date_range)}" if date_range else "无数据",
+            "areas_covered": sorted(total_areas)}

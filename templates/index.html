@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>虚拟公民信息生成器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            font-weight: 600;
+            color: #6c757d;
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
+        }
+
+        .tab:hover {
+            background: #e9ecef;
+            color: #495057;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            background: white;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 30px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .form-group select,
+        .form-group input {
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group select:focus,
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            accent-color: #667eea;
+        }
+
+        .generate-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 25px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .generate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .generate-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .cards-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .person-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+
+        .person-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            border-color: #667eea;
+        }
+
+        .person-card h3 {
+            color: #495057;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 10px;
+        }
+
+        .person-info {
+            display: grid;
+            gap: 8px;
+        }
+
+        .person-info div {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+        }
+
+        .person-info span:first-child {
+            font-weight: 600;
+            color: #6c757d;
+        }
+
+        .person-info span:last-child {
+            color: #495057;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+
+        .loading::after {
+            content: "";
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 0;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            border-radius: 20px 20px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-weight: 300;
+        }
+
+        .close {
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
+
+        .close:hover {
+            background-color: rgba(255,255,255,0.2);
+        }
+
+        .modal-body {
+            padding: 30px;
+        }
+
+        .detail-section {
+            margin-bottom: 30px;
+        }
+
+        .detail-section h3 {
+            color: #495057;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e9ecef;
+            font-size: 1.2em;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .detail-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .detail-item strong {
+            color: #6c757d;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .copy-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background-color 0.3s ease;
+        }
+
+        .copy-btn:hover {
+            background: #218838;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+        }
+
+        .empty-state i {
+            font-size: 4em;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .refresh-btn {
+            background: #17a2b8;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            margin-left: 10px;
+            transition: background-color 0.3s ease;
+        }
+
+        .refresh-btn:hover {
+            background: #138496;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 1px solid #f5c6cb;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 1px solid #c3e6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>虚拟公民信息生成器</h1>
+            <p>快速生成虚拟公民信息，支持多种配置选项</p>
+        </div>
+
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('generate')">生成信息</div>
+            <div class="tab" onclick="showTab('history')">历史记录</div>
+        </div>
+
+        <!-- 生成信息标签页 -->
+        <div id="generate-tab" class="tab-content active">
+            <form id="generateForm">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="country">国家</label>
+                        <select id="country" name="country" required>
+                            <option value="US" selected>美国</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="state">州/地区</label>
+                        <select id="state" name="state" required>
+                            <option value="CA" selected>CA 加利福尼亚州 California</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="gender">性别</label>
+                        <select id="gender" name="gender">
+                            <option value="male" selected>男</option>
+                            <option value="female">女</option>
+                            <option value="">随机</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="display: flex; gap: 10px;">
+                        <div style="flex: 1;">
+                            <label for="age_min">最小年龄</label>
+                            <select id="age_min" name="age_min">
+                                <option value="20" selected>20岁</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1;">
+                            <label for="age_max">最大年龄</label>
+                            <select id="age_max" name="age_max">
+                                <option value="30" selected>30岁</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="education">教育水平</label>
+                        <select id="education" name="education">
+                            <option value="college" selected>大学</option>
+                            <option value="none">无</option>
+                            <option value="high_school">高中</option>
+                            <option value="">随机</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="parents">父母信息</label>
+                        <select id="parents" name="parents">
+                            <option value="both" selected>父母双方</option>
+                            <option value="none">无</option>
+                            <option value="father">仅父亲</option>
+                            <option value="mother">仅母亲</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="count">生成数量</label>
+                        <input type="number" id="count" name="count" min="1" max="50" value="2">
+                    </div>
+
+                    <div class="form-group">
+                        <label>&nbsp;</label>
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="backup" name="backup">
+                            <label for="backup">备份到文件</label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>&nbsp;</label>
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="enable_ssn_validation" name="enable_ssn_validation">
+                            <label for="enable_ssn_validation">启用SSN在线验证（较慢）</label>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="generate-btn">生成虚拟公民信息</button>
+                <button type="button" class="refresh-btn" onclick="clearResults()" style="width: 100%; margin-top: 10px;">清空所有结果</button>
+            </form>
+
+            <div id="results" class="cards-container"></div>
+        </div>
+
+        <!-- 历史记录标签页 -->
+        <div id="history-tab" class="tab-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2>最近7天的记录</h2>
+                <button class="refresh-btn" onclick="loadHistory()">刷新</button>
+            </div>
+            <div id="history-results" class="cards-container"></div>
+        </div>
+    </div>
+
+    <!-- 详情模态框 -->
+    <div id="detailModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">详细信息</h2>
+                <button class="close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- 详细信息将在这里显示 -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let countries = [];
+        let states = {};
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadCountries();
+            loadHistory();
+            initAgeSelects();
+            
+            // 设置默认值
+            document.getElementById('country').value = 'US';
+            document.getElementById('gender').value = 'male';
+            document.getElementById('education').value = 'college';
+            document.getElementById('parents').value = 'both';
+            document.getElementById('count').value = '2';
+            document.getElementById('age_min').value = '20';
+            document.getElementById('age_max').value = '30';
+            
+            // 表单提交事件
+            document.getElementById('generateForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                generatePeople();
+            });
+
+            // 国家选择事件
+            document.getElementById('country').addEventListener('change', function() {
+                loadStates(this.value);
+            });
+
+            // 最小年龄选择事件
+            document.getElementById('age_min').addEventListener('change', function() {
+                handleAgeMinChange(this.value);
+            });
+
+            // 模态框点击外部关闭
+            document.getElementById('detailModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeModal();
+                }
+            });
+        });
+
+        // 初始化年龄选择器
+        function initAgeSelects() {
+            const ageMinSelect = document.getElementById('age_min');
+            const ageMaxSelect = document.getElementById('age_max');
+            
+            // 清空选择器
+            ageMinSelect.innerHTML = '';
+            ageMaxSelect.innerHTML = '';
+            
+            // 填充最小年龄选项（0-100）
+            for (let i = 0; i <= 100; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = i ;
+                ageMinSelect.appendChild(option);
+            }
+
+            // 设置默认值
+            ageMinSelect.value = '20';
+            
+            // 更新最大年龄选项
+            updateMaxAgeOptions();
+        }
+
+        // 更新最大年龄选项
+        function updateMaxAgeOptions() {
+            const ageMinSelect = document.getElementById('age_min');
+            const ageMaxSelect = document.getElementById('age_max');
+            const minAge = parseInt(ageMinSelect.value);
+            
+            // 清空并重新填充最大年龄选项
+            ageMaxSelect.innerHTML = '';
+            
+            // 从最小年龄开始填充到100岁
+            for (let i = minAge; i <= 100; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = i ;
+                ageMaxSelect.appendChild(option);
+            }
+            
+            // 如果当前没有选择值，或者选择的值小于最小年龄，则设置为30
+            const currentMax = parseInt(ageMaxSelect.value);
+            if (isNaN(currentMax) || currentMax < minAge) {
+                ageMaxSelect.value = '30';
+            }
+        }
+
+        // 处理最小年龄变化
+        function handleAgeMinChange(minAge) {
+            const ageMaxSelect = document.getElementById('age_max');
+            const minAgeNum = parseInt(minAge);
+            
+            // 更新最大年龄选项
+            updateMaxAgeOptions();
+            
+            // 如果当前最大值小于新的最小值，重置为最大值
+            const currentMax = parseInt(ageMaxSelect.value);
+            if (currentMax < minAgeNum) {
+                ageMaxSelect.value = '100';
+            }
+        }
+
+        // 切换标签页
+        function showTab(tabName) {
+            const tabs = document.querySelectorAll('.tab');
+            const contents = document.querySelectorAll('.tab-content');
+            
+            tabs.forEach(tab => tab.classList.remove('active'));
+            contents.forEach(content => content.classList.remove('active'));
+            
+            document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+            
+            if (tabName === 'history') {
+                loadHistory();
+            }
+        }
+
+        // 加载国家列表
+        async function loadCountries() {
+            try {
+                const response = await fetch('/api/countries');
+                const data = await response.json();
+                
+                if (data.success) {
+                    countries = data.countries;
+                    const select = document.getElementById('country');
+                    select.innerHTML = '';  // 清空选项
+                    
+                    countries.forEach(country => {
+                        const option = document.createElement('option');
+                        option.value = country;
+                        option.textContent = country;
+                        select.appendChild(option);
+                    });
+
+                    // 设置默认值为US
+                    select.value = 'US';
+                    // 加载US的州列表
+                    loadStates('US');
+                }
+            } catch (error) {
+                console.error('加载国家列表失败:', error);
+            }
+        }
+
+        // 加载州/地区列表
+        async function loadStates(country) {
+            const stateSelect = document.getElementById('state');
+            
+            if (!country) {
+                stateSelect.innerHTML = '<option value="">请先选择国家</option>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/states/${country}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    states[country] = data.states;
+                    stateSelect.innerHTML = '';
+                    
+                    Object.entries(data.states).forEach(([code, info]) => {
+                        const option = document.createElement('option');
+                        option.value = code;
+                        option.textContent = `${code} ${info.name} ${info.chinese_name}`;
+                        stateSelect.appendChild(option);
+                    });
+                    
+                    // 设置默认值
+                    stateSelect.value = 'CA';
+                }
+            } catch (error) {
+                console.error('加载州列表失败:', error);
+            }
+        }
+
+        // 生成人员信息
+        async function generatePeople() {
+            const form = document.getElementById('generateForm');
+            const formData = new FormData(form);
+            const data = {};
+            
+            for (let [key, value] of formData.entries()) {
+                if (value) {
+                    if (key === 'count') {
+                        data[key] = parseInt(value);
+                    } else if (key === 'backup' || key === 'enable_ssn_validation') {
+                        data[key] = true;
+                    } else {
+                        data[key] = value;
+                    }
+                }
+            }
+
+            // 处理年龄范围
+            const ageMin = document.getElementById('age_min').value;
+            const ageMax = document.getElementById('age_max').value;
+            
+            if (ageMin && ageMax) {
+                data['age_range'] = `${ageMin}-${ageMax}`;
+            } else if (ageMin) {
+                data['age_range'] = `${ageMin}-100`;
+            }
+
+            // 显示加载状态
+            const resultsDiv = document.getElementById('results');
+            
+            // 创建加载状态元素并添加到容器顶部，而不是清空整个容器
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'loading';
+            loadingDiv.textContent = '正在生成信息';
+            resultsDiv.insertBefore(loadingDiv, resultsDiv.firstChild);
+
+            const submitBtn = document.querySelector('.generate-btn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = '生成中...';
+
+            try {
+                const response = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayResults(result.people);
+                    if (data.backup) {
+                        showMessage('信息已生成并备份到文件！', 'success');
+                    } else {
+                        showMessage('信息已生成！', 'success');
+                    }
+                } else {
+                    throw new Error(result.error);
+                }
+            } catch (error) {
+                console.error('生成失败:', error);
+                resultsDiv.innerHTML = `<div class="error">生成失败: ${error.message}</div>`;
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '生成虚拟公民信息';
+            }
+        }
+
+        // 显示生成结果
+        function displayResults(people) {
+            const resultsDiv = document.getElementById('results');
+            
+            // 先清除加载状态
+            const loadingElement = resultsDiv.querySelector('.loading');
+            if (loadingElement) {
+                loadingElement.remove();
+            }
+            
+            if (people.length === 0) {
+                // 如果没有生成任何信息，显示提示但不清空现有结果
+                const emptyMessage = document.createElement('div');
+                emptyMessage.className = 'empty-state';
+                emptyMessage.textContent = '本次没有生成任何信息';
+                resultsDiv.appendChild(emptyMessage);
+                // 3秒后移除提示
+                setTimeout(() => {
+                    if (emptyMessage.parentNode) {
+                        emptyMessage.parentNode.removeChild(emptyMessage);
+                    }
+                }, 3000);
+                return;
+            }
+
+            // 创建新卡片并追加到现有结果中
+            people.forEach(person => {
+                const cardHTML = createPersonCard(person, true);
+                const cardElement = document.createElement('div');
+                cardElement.innerHTML = cardHTML;
+                const card = cardElement.firstElementChild;
+                resultsDiv.appendChild(card);
+            });
+        }
+
+        // 创建人员卡片
+        function createPersonCard(person, isGenerated = false) {
+            const name = isGenerated ? 
+                `${person.name.first_name} ${person.name.last_name}` : 
+                person.name;
+            const age = isGenerated ? calculateAge(person.birthday) : person.age;
+            const gender = isGenerated ? (person.gender === 'male' ? '男' : '女') : person.gender;
+            const address = isGenerated ? person.address.full_address : person.address;
+            const phone = person.phone;
+            const ssn = isGenerated ? person.ssn.number : (typeof person.ssn === 'object' ? person.ssn.number : person.ssn);
+            const state = isGenerated ? 
+                `${person.state_info.name} ${person.state_info.chinese_name}` : 
+                person.state;
+
+            const filePath = isGenerated ? '' : person.file_path || '';
+            
+            // 为生成的卡片创建唯一ID
+            const cardId = isGenerated ? `card_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` : '';
+
+            // SSN验证图标
+            const ssnVerifiedIcon = (isGenerated && person.ssn.verified) ? 
+                ' <span style="color: #28a745; font-weight: bold;" title="SSN在线验证通过">✓</span>' : '';
+
+            return `
+                <div class="person-card" onclick="showPersonDetail('${isGenerated ? cardId : filePath}', ${isGenerated})" data-person='${isGenerated ? JSON.stringify(person).replace(/'/g, "&#39;") : filePath}' ${cardId ? `id="${cardId}"` : ''}>
+                    <h3>${name}</h3>
+                    <div class="person-info">
+                        <div><span>性别:</span><span>${gender}</span></div>
+                        <div><span>年龄:</span><span>${age}岁</span></div>
+                        <div><span>地址:</span><span>${address}</span></div>
+                        <div><span>州:</span><span>${state}</span></div>
+                        <div><span>电话:</span><span>${phone}</span></div>
+                        <div><span>社保号:</span><span>${ssn}${ssnVerifiedIcon}</span></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 计算年龄
+        function calculateAge(birthday) {
+            if (!birthday || birthday.length !== 8) return '';
+            const birthYear = parseInt(birthday.substring(0, 4));
+            const currentYear = new Date().getFullYear();
+            return currentYear - birthYear;
+        }
+
+        // 加载历史记录
+        async function loadHistory() {
+            const historyDiv = document.getElementById('history-results');
+            historyDiv.innerHTML = '<div class="loading">正在加载历史记录</div>';
+
+            try {
+                const response = await fetch('/api/recent_people');
+                const data = await response.json();
+                
+                if (data.success) {
+                    if (data.people.length === 0) {
+                        historyDiv.innerHTML = '<div class="empty-state"><i>📁</i><h3>暂无历史记录</h3><p>最近7天内没有生成的记录</p></div>';
+                    } else {
+                        const cards = data.people.map(person => createPersonCard(person, false)).join('');
+                        historyDiv.innerHTML = cards;
+                    }
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (error) {
+                console.error('加载历史记录失败:', error);
+                historyDiv.innerHTML = `<div class="error">加载失败: ${error.message}</div>`;
+            }
+        }
+
+        // 显示人员详情
+        async function showPersonDetail(dataOrCardId, isGenerated) {
+            const modal = document.getElementById('detailModal');
+            const modalBody = document.getElementById('modalBody');
+            const modalTitle = document.getElementById('modalTitle');
+            
+            modalBody.innerHTML = '<div class="loading">正在加载详细信息</div>';
+            modal.style.display = 'block';
+
+            try {
+                let personData;
+                
+                if (isGenerated) {
+                    // 从卡片的data属性中获取数据
+                    const cardElement = document.getElementById(dataOrCardId);
+                    const personDataStr = cardElement.getAttribute('data-person');
+                    personData = JSON.parse(personDataStr);
+                } else {
+                    const response = await fetch(`/api/person_detail?file_path=${encodeURIComponent(dataOrCardId)}`);
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        personData = result.person;
+                    } else {
+                        throw new Error(result.error);
+                    }
+                }
+
+                displayPersonDetail(personData);
+                modalTitle.textContent = `${personData.name.last_name} ${personData.name.first_name} - 详细信息`;
+                
+            } catch (error) {
+                console.error('加载详情失败:', error);
+                modalBody.innerHTML = `<div class="error">加载失败: ${error.message}</div>`;
+            }
+        }
+
+        // 显示人员详细信息
+        function displayPersonDetail(person) {
+            const modalBody = document.getElementById('modalBody');
+            
+            let html = `
+                <div class="detail-section">
+                    <h3>基本信息</h3>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <strong>姓名 (First name Last name)</strong>
+                            ${person.name.first_name} ${person.name.last_name}
+                        </div>
+                        <div class="detail-item">
+                            <strong>性别</strong>
+                            ${person.gender === 'male' ? '男' : '女'}
+                        </div>
+                        <div class="detail-item">
+                            <strong>生日</strong>
+                            ${formatBirthday(person.birthday)}
+                        </div>
+                        <div class="detail-item">
+                            <strong>年龄</strong>
+                            ${calculateAge(person.birthday)}岁
+                        </div>
+                        <div class="detail-item">
+                            <strong>国家</strong>
+                            ${person.country}
+                        </div>
+                        <div class="detail-item">
+                            <strong>州/地区</strong>
+                            ${person.state}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="detail-section">
+                    <h3>联系信息</h3>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <strong>电话</strong>
+                            ${person.phone}
+                        </div>
+                        <div class="detail-item">
+                            <strong>邮箱</strong>
+                            ${person.email}
+                        </div>
+                        <div class="detail-item">
+                            <strong>州名称</strong>
+                            ${getStateName(person.state)}
+                        </div>
+                        <div class="detail-item">
+                            <strong>州缩写</strong>
+                            ${person.state}
+                        </div>
+                        <div class="detail-item">
+                            <strong>完整地址</strong>
+                            ${person.address.full_address}
+                        </div>
+                        <div class="detail-item">
+                            <strong>街道</strong>
+                            ${person.address.street}
+                        </div>
+                        <div class="detail-item">
+                            <strong>城市</strong>
+                            ${person.address.city}
+                        </div>
+                        <div class="detail-item">
+                            <strong>邮编</strong>
+                            ${person.address.zip_code}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="detail-section">
+                    <h3>身份信息</h3>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <strong>社会保障号</strong>
+                            ${person.ssn.number}${person.ssn.verified ? ' <span style="color: #28a745; font-weight: bold;" title="SSN在线验证通过">✓</span>' : ''}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="detail-section">
+                    <h3>教育水平</h3>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <strong>教育水平</strong>
+                            ${getEducationLevel(person.education.education_level)}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            if (person.education.high_school) {
+                html += `
+                <div class="detail-section">
+                    <h3>高中信息</h3>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <strong>学校名称</strong>
+                            ${person.education.high_school.name}
+                        </div>
+                        <div class="detail-item">
+                            <strong>学校缩写</strong>
+                            ${person.education.high_school.abbreviation}
+                        </div>
+                        <div class="detail-item">
+                            <strong>学校地址</strong>
+                            ${person.education.high_school.address}
+                        </div>
+                        <div class="detail-item">
+                            <strong>入学时间</strong>
+                            ${formatDate(person.education.high_school.start_date)}
+                        </div>
+                        <div class="detail-item">
+                            <strong>毕业时间</strong>
+                            ${formatDate(person.education.high_school.graduation_date)}
+                        </div>
+                    </div>
+                </div>
+                `;
+            }
+
+            if (person.education.college) {
+                html += `
+                <div class="detail-section">
+                    <h3>大学信息</h3>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <strong>学校名称</strong>
+                            ${person.education.college.name}
+                        </div>
+                        <div class="detail-item">
+                            <strong>学校缩写</strong>
+                            ${person.education.college.abbreviation}
+                        </div>
+                        <div class="detail-item">
+                            <strong>学校地址</strong>
+                            ${person.education.college.address}
+                        </div>
+                        <div class="detail-item">
+                            <strong>入学时间</strong>
+                            ${formatDate(person.education.college.start_date)}
+                        </div>
+                        <div class="detail-item">
+                            <strong>毕业时间</strong>
+                            ${formatDate(person.education.college.graduation_date)}
+                        </div>
+                    </div>
+                </div>
+                `;
+            }
+
+            if (person.parents) {
+                if (person.parents.father) {
+                    html += `
+                    <div class="detail-section">
+                        <h3>父亲信息</h3>
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <strong>姓名 (First name Last name)</strong>
+                                ${person.parents.father.name.first_name} ${person.parents.father.name.last_name}
+                            </div>
+                            <div class="detail-item">
+                                <strong>生日</strong>
+                                ${formatBirthday(person.parents.father.birthday)}
+                            </div>
+                            <div class="detail-item">
+                                <strong>年龄</strong>
+                                ${calculateAge(person.parents.father.birthday)}岁
+                            </div>
+                            <div class="detail-item">
+                                <strong>电话</strong>
+                                ${person.parents.father.phone}
+                            </div>
+                            <div class="detail-item">
+                                <strong>邮箱</strong>
+                                ${person.parents.father.email}
+                            </div>
+                            <div class="detail-item">
+                                <strong>地址</strong>
+                                ${person.parents.father.address.full_address}
+                            </div>
+                            <div class="detail-item">
+                                <strong>社保号</strong>
+                                ${person.parents.father.ssn.number}${person.parents.father.ssn.verified ? ' <span style="color: #28a745; font-weight: bold;" title="SSN在线验证通过">✓</span>' : ''}
+                            </div>
+                        </div>
+                    </div>
+                    `;
+                }
+                
+                if (person.parents.mother) {
+                    html += `
+                    <div class="detail-section">
+                        <h3>母亲信息</h3>
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <strong>姓名 (First name Last name)</strong>
+                                ${person.parents.mother.name.first_name} ${person.parents.mother.name.last_name}
+                            </div>
+                            <div class="detail-item">
+                                <strong>生日</strong>
+                                ${formatBirthday(person.parents.mother.birthday)}
+                            </div>
+                            <div class="detail-item">
+                                <strong>年龄</strong>
+                                ${calculateAge(person.parents.mother.birthday)}岁
+                            </div>
+                            <div class="detail-item">
+                                <strong>电话</strong>
+                                ${person.parents.mother.phone}
+                            </div>
+                            <div class="detail-item">
+                                <strong>邮箱</strong>
+                                ${person.parents.mother.email}
+                            </div>
+                            <div class="detail-item">
+                                <strong>地址</strong>
+                                ${person.parents.mother.address.full_address}
+                            </div>
+                            <div class="detail-item">
+                                <strong>社保号</strong>
+                                ${person.parents.mother.ssn.number}${person.parents.mother.ssn.verified ? ' <span style="color: #28a745; font-weight: bold;" title="SSN在线验证通过">✓</span>' : ''}
+                            </div>
+                        </div>
+                    </div>
+                    `;
+                }
+            }
+
+            html += `
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button class="copy-btn" onclick="copyPersonData('json')">复制JSON格式</button>
+                    <button class="copy-btn" onclick="copyPersonData('txt')">复制文本格式</button>
+                </div>
+            `;
+            
+            modalBody.innerHTML = html;
+            
+            // 存储当前人员数据用于复制
+            window.currentPersonData = person;
+        }
+
+        // 格式化生日
+        function formatBirthday(birthday) {
+            if (!birthday || birthday.length !== 8) return birthday;
+            const year = birthday.substring(0, 4);
+            const month = birthday.substring(4, 6);
+            const day = birthday.substring(6, 8);
+            return `${year}-${month}-${day}`;
+        }
+
+        // 格式化日期
+        function formatDate(dateStr) {
+            if (!dateStr || dateStr.length !== 6) return dateStr;
+            const year = dateStr.substring(0, 4);
+            const month = dateStr.substring(4, 6);
+            return `${year}-${month}`;
+        }
+
+        // 获取教育水平中文
+        function getEducationLevel(level) {
+            const levels = {
+                'none': '无',
+                'high_school': '高中',
+                'college': '大学'
+            };
+            return levels[level] || level;
+        }
+
+        // 获取州名称
+        function getStateName(stateCode) {
+            const stateNames = {
+                'CA': '加利福尼亚州',
+                'NY': '纽约州', 
+                'TX': '德克萨斯州',
+                'FL': '佛罗里达州',
+                'NV': '内华达州',
+                'IL': '伊利诺伊州',
+                'PA': '宾夕法尼亚州',
+                'OH': '俄亥俄州',
+                'GA': '乔治亚州',
+                'NC': '北卡罗来纳州',
+                'MI': '密歇根州',
+                'NJ': '新泽西州',
+                'VA': '弗吉尼亚州',
+                'WA': '华盛顿州',
+                'AZ': '亚利桑那州',
+                'MA': '马萨诸塞州',
+                'TN': '田纳西州',
+                'IN': '印第安纳州',
+                'MO': '密苏里州',
+                'MD': '马里兰州'
+            };
+            return stateNames[stateCode] || stateCode;
+        }
+
+        // 获取州英文名
+        function getStateEnglishName(stateCode) {
+            const stateNames = {
+                'CA': 'California',
+                'NY': 'New York',
+                'TX': 'Texas',
+                'FL': 'Florida',
+                'NV': 'Nevada',
+                'IL': 'Illinois',
+                'PA': 'Pennsylvania',
+                'OH': 'Ohio',
+                'GA': 'Georgia',
+                'NC': 'North Carolina',
+                'MI': 'Michigan',
+                'NJ': 'New Jersey',
+                'VA': 'Virginia',
+                'WA': 'Washington',
+                'AZ': 'Arizona',
+                'MA': 'Massachusetts',
+                'TN': 'Tennessee',
+                'IN': 'Indiana',
+                'MO': 'Missouri',
+                'MD': 'Maryland'
+            };
+            return stateNames[stateCode] || stateCode;
+        }
+
+        // 复制人员数据
+        function copyPersonData(format) {
+            if (window.currentPersonData) {
+                let textString = '';
+                const person = window.currentPersonData;
+                
+                if (format === 'json') {
+                    textString = JSON.stringify(person, null, 2);
+                } else if (format === 'txt') {
+                    // 按照卡片显示的顺序格式化文本
+                    textString = `基本信息：
+姓名：${person.name.last_name} ${person.name.first_name}
+性别：${person.gender === 'male' ? '男' : '女'}
+年龄：${calculateAge(person.birthday)}岁
+生日：${formatBirthday(person.birthday)}
+国家：${person.country}
+州：${getStateName(person.state)} (${person.state})
+
+联系信息：
+电话：${person.phone}
+邮箱：${person.email}
+地址：${person.address.full_address}
+
+身份信息：
+社会保障号：${person.ssn.number}${person.ssn.verified ? ' (已验证)' : ''}
+
+教育信息：
+教育水平：${getEducationLevel(person.education.education_level)}`;
+
+                    if (person.education.high_school) {
+                        textString += `
+高中：${person.education.high_school.name} (${person.education.high_school.abbreviation})
+高中地址：${person.education.high_school.address}
+高中入学：${formatDate(person.education.high_school.start_date)}
+高中毕业：${formatDate(person.education.high_school.graduation_date)}`;
+                    }
+
+                    if (person.education.college) {
+                        textString += `
+大学：${person.education.college.name} (${person.education.college.abbreviation})
+大学地址：${person.education.college.address}
+大学入学：${formatDate(person.education.college.start_date)}
+大学毕业：${formatDate(person.education.college.graduation_date)}`;
+                    }
+
+                    if (person.parents) {
+                        if (person.parents.father) {
+                            textString += `
+
+父亲信息：
+姓名：${person.parents.father.name.last_name} ${person.parents.father.name.first_name}
+生日：${formatBirthday(person.parents.father.birthday)}
+年龄：${calculateAge(person.parents.father.birthday)}岁
+电话：${person.parents.father.phone}
+邮箱：${person.parents.father.email}
+地址：${person.parents.father.address.full_address}
+社保号：${person.parents.father.ssn.number}${person.parents.father.ssn.verified ? ' (已验证)' : ''}`;
+                        }
+
+                        if (person.parents.mother) {
+                            textString += `
+
+母亲信息：
+姓名：${person.parents.mother.name.last_name} ${person.parents.mother.name.first_name}
+生日：${formatBirthday(person.parents.mother.birthday)}
+年龄：${calculateAge(person.parents.mother.birthday)}岁
+电话：${person.parents.mother.phone}
+邮箱：${person.parents.mother.email}
+地址：${person.parents.mother.address.full_address}
+社保号：${person.parents.mother.ssn.number}${person.parents.mother.ssn.verified ? ' (已验证)' : ''}`;
+                        }
+                    }
+                }
+                
+                navigator.clipboard.writeText(textString).then(() => {
+                    showMessage(`信息已复制到剪贴板！（${format === 'json' ? 'JSON' : '文本'}格式）`, 'success');
+                }).catch(err => {
+                    console.error('复制失败:', err);
+                    showMessage('复制失败，请手动选择文本复制', 'error');
+                });
+            }
+        }
+
+        // 关闭模态框
+        function closeModal() {
+            document.getElementById('detailModal').style.display = 'none';
+            // 清理数据
+            window.currentPersonData = null;
+        }
+
+        // 显示消息
+        function showMessage(message, type) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = type === 'success' ? 'success' : 'error';
+            messageDiv.textContent = message;
+            
+            // 插入到当前活动的标签页内容中
+            const activeTab = document.querySelector('.tab-content.active');
+            activeTab.insertBefore(messageDiv, activeTab.firstChild);
+            
+            // 3秒后自动删除
+            setTimeout(() => {
+                if (messageDiv.parentNode) {
+                    messageDiv.parentNode.removeChild(messageDiv);
+                }
+            }, 3000);
+        }
+
+        // 清空所有结果
+        function clearResults() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+        }
+    </script>
+</body>
+</html> 
