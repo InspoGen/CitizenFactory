@@ -822,9 +822,13 @@
             // 为生成的卡片创建唯一ID
             const cardId = isGenerated ? `card_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` : '';
 
-            // SSN验证图标
-            const ssnVerifiedIcon = (isGenerated && person.ssn.verified) ? 
-                ' <span style="color: #28a745; font-weight: bold;" title="SSN在线验证通过">✓</span>' : '';
+            // SSN验证图标 - 修复逻辑，支持生成的和历史的数据
+            let ssnVerifiedIcon = '';
+            if (isGenerated && person.ssn && person.ssn.verified) {
+                ssnVerifiedIcon = ' <span class="verified-icon" style="color: #28a745; font-weight: bold;" title="SSN在线验证通过">✓</span>';
+            } else if (!isGenerated && typeof person.ssn === 'object' && person.ssn.verified) {
+                ssnVerifiedIcon = ' <span class="verified-icon" style="color: #28a745; font-weight: bold;" title="SSN在线验证通过">✓</span>';
+            }
 
             return `
                 <div class="person-card" onclick="showPersonDetail('${isGenerated ? cardId : filePath}', ${isGenerated})" data-person='${isGenerated ? JSON.stringify(person).replace(/'/g, "&#39;") : filePath}' ${cardId ? `id="${cardId}"` : ''}>
@@ -989,7 +993,7 @@
                     <div class="detail-grid">
                         <div class="detail-item">
                             <strong>社会保障号</strong>
-                            ${person.ssn.number}${person.ssn.verified ? ' <span style="color: #28a745; font-weight: bold;" title="SSN在线验证通过">✓</span>' : ''}
+                            ${person.ssn.number}${person.ssn && person.ssn.verified ? ' <span class="verified-icon" style="color: #28a745; font-weight: bold;" title="SSN在线验证通过">✓</span>' : ''}
                         </div>
                     </div>
                 </div>
@@ -1097,7 +1101,7 @@
                             </div>
                             <div class="detail-item">
                                 <strong>社保号</strong>
-                                ${person.parents.father.ssn.number}${person.parents.father.ssn.verified ? ' <span style="color: #28a745; font-weight: bold;" title="SSN在线验证通过">✓</span>' : ''}
+                                ${person.parents.father.ssn.number}${person.parents.father.ssn && person.parents.father.ssn.verified ? ' <span class="verified-icon" style="color: #28a745; font-weight: bold;" title="SSN在线验证通过">✓</span>' : ''}
                             </div>
                         </div>
                     </div>
@@ -1135,7 +1139,7 @@
                             </div>
                             <div class="detail-item">
                                 <strong>社保号</strong>
-                                ${person.parents.mother.ssn.number}${person.parents.mother.ssn.verified ? ' <span style="color: #28a745; font-weight: bold;" title="SSN在线验证通过">✓</span>' : ''}
+                                ${person.parents.mother.ssn.number}${person.parents.mother.ssn && person.parents.mother.ssn.verified ? ' <span class="verified-icon" style="color: #28a745; font-weight: bold;" title="SSN在线验证通过">✓</span>' : ''}
                             </div>
                         </div>
                     </div>
@@ -1243,6 +1247,11 @@
                 let textString = '';
                 const person = window.currentPersonData;
                 
+                // Helper function to get verification status as text
+                function getVerificationText(ssnObj) {
+                    return ssnObj && ssnObj.verified ? ' (已验证)' : '';
+                }
+                
                 if (format === 'json') {
                     textString = JSON.stringify(person, null, 2);
                 } else if (format === 'txt') {
@@ -1261,7 +1270,7 @@
 地址：${person.address.full_address}
 
 身份信息：
-社会保障号：${person.ssn.number}${person.ssn.verified ? ' (已验证)' : ''}
+社会保障号：${person.ssn.number}${getVerificationText(person.ssn)}
 
 教育信息：
 教育水平：${getEducationLevel(person.education.education_level)}`;
@@ -1293,7 +1302,7 @@
 电话：${person.parents.father.phone}
 邮箱：${person.parents.father.email}
 地址：${person.parents.father.address.full_address}
-社保号：${person.parents.father.ssn.number}${person.parents.father.ssn.verified ? ' (已验证)' : ''}`;
+社保号：${person.parents.father.ssn.number}${getVerificationText(person.parents.father.ssn)}`;
                         }
 
                         if (person.parents.mother) {
@@ -1306,7 +1315,7 @@
 电话：${person.parents.mother.phone}
 邮箱：${person.parents.mother.email}
 地址：${person.parents.mother.address.full_address}
-社保号：${person.parents.mother.ssn.number}${person.parents.mother.ssn.verified ? ' (已验证)' : ''}`;
+社保号：${person.parents.mother.ssn.number}${getVerificationText(person.parents.mother.ssn)}`;
                         }
                     }
                 }

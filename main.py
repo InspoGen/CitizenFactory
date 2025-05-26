@@ -420,10 +420,10 @@ def main():
                     max_year = max(available_years)
                     total_years = max_year - min_year + 1
                     predicted_years = len([y for y in available_years if y < 2003])
-                    if predicted_years > 0:
-                        print(f"ℹ️  系统使用扩展High Group数据: {min_year}-{max_year} ({total_years}年, 含{predicted_years}年推测数据)")
-                    else:
-                        print(f"ℹ️  系统使用High Group数据: {min_year}-{max_year} ({total_years}年)")
+                    # if predicted_years > 0:
+                    #     print(f"ℹ️  系统使用扩展High Group数据: {min_year}-{max_year} ({total_years}年, 含{predicted_years}年推测数据)")
+                    # else:
+                    #     print(f"ℹ️  系统使用High Group数据: {min_year}-{max_year} ({total_years}年)")
             except:
                 pass  # 静默失败，不影响主要功能
         
