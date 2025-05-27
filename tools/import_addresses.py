@@ -10,6 +10,7 @@ import os
 import re
 import sys
 from typing import Dict, List, Any, Tuple, Optional
+import requests # 导入 requests
 
 
 class AddressImporter:
@@ -51,6 +52,73 @@ class AddressImporter:
         else:
             print(f"警告: 无法解析地址格式: {address_line}", file=sys.stderr)
             return None
+    
+    @staticmethod
+    def get_zip_plus4_from_full_address(full_address: str) -> str:
+        """
+        解析完整地址并通过 YAddress API 获取 ZIP+4。
+        输入示例：
+          "4368 Santa Anita Avenue, EL Monte, CA 91731-1606"
+          或 "4368 Santa Anita Avenue, EL Monte, CA 91731"
+        返回：
+          成功时："91731-1606"
+          失败时："0"
+        """
+        # 1. 用正则提取：街道、城市、州、原有邮编（但我们不实际用原有邮编）
+        m = re.match(
+            r'^\s*(?P<street>[^,]+)\s*,\s*'
+            r'(?P<city>[^,]+)\s*,\s*'
+            r'(?P<state>[A-Z]{2})\s+'
+            r'(?P<zip5>\d{5})(?:-\d{4})?\s*$',
+            full_address,
+            flags=re.IGNORECASE
+        )
+        if not m:
+            # 如果初始解析失败，尝试一个更宽松的模式来提取至少Street, City, State用于API调用
+            m_宽松 = re.match(
+                r'^\s*(?P<street>[^,]+)\s*,\s*'
+                r'(?P<city>[^,]+)\s*,\s*'
+                r'(?P<state>[A-Z]{2})\s*', # 移除邮编部分，允许地址行末尾没有邮编
+                full_address,
+                flags=re.IGNORECASE
+            )
+            if not m_宽松:
+                print(f"警告: 无法从地址行提取基本信息 (Street, City, State): {full_address}", file=sys.stderr)
+                return "0"
+            street = m_宽松.group('street').strip()
+            city = m_宽松.group('city').strip()
+            state = m_宽松.group('state').upper().strip()
+        else:
+            street = m.group('street').strip()
+            city = m.group('city').strip()
+            state = m.group('state').upper().strip()
+
+        # 2. 调用 YAddress API
+        url = "https://www.yaddress.net/api/address"
+        params = {
+            "AddressLine1": street,
+            "AddressLine2": f"{city}, {state}"
+        }
+
+        try:
+            # print(f"DEBUG: Calling YAddress API with params: {params}") # 调试输出
+            resp = requests.get(url, params=params, timeout=10) # 增加超时时间
+            resp.raise_for_status()
+            data = resp.json()
+            # print(f"DEBUG: YAddress API response: {data}") # 调试输出
+        except requests.exceptions.RequestException as e:
+            print(f"警告: YAddress API 请求失败: {e} for address: {full_address}", file=sys.stderr)
+            return "0"
+        except Exception as e: # 更广泛的异常捕获
+            print(f"警告: 处理YAddress API响应时发生未知错误: {e} for address: {full_address}", file=sys.stderr)
+            return "0"
+
+        # 3. 解析返回值
+        if data.get("ErrorCode") == 0 and data.get("Zip") and data.get("Zip4"):
+            return f"{data['Zip']}-{data['Zip4']}"
+        else:
+            # print(f"DEBUG: YAddress API ErrorCode or missing Zip/Zip4. ErrorCode: {data.get('ErrorCode')}, ErrorMessage: {data.get('ErrorMessage')}") # 调试输出
+            return "0"
     
     def parse_school_line(self, school_line: str) -> Optional[Dict[str, str]]:
         """
@@ -149,24 +217,49 @@ class AddressImporter:
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 for line_num, line in enumerate(f, 1):
-                    parsed = self.parse_address(line)
+                    original_address_line = line.strip()
+                    if not original_address_line:
+                        continue
+
+                    print(f"正在处理第 {line_num} 行: {original_address_line}")
+                    zip_plus4 = AddressImporter.get_zip_plus4_from_full_address(original_address_line)
+
+                    if zip_plus4 == "0":
+                        print(f"警告: 无法获取 {original_address_line} 的9位邮编或地址无效，跳过导入。", file=sys.stderr)
+                        continue
+                    
+                    # 使用原始解析逻辑来提取街道、城市、州，然后替换邮编
+                    parsed_original = self.parse_address(original_address_line)
+                    if not parsed_original:
+                         # 如果原始地址本身就无法解析（即使 get_zip_plus4_from_full_address 可能通过宽松模式处理了），也跳过
+                        print(f"警告: 原始地址 {original_address_line} 格式不规范，跳过导入。", file=sys.stderr)
+                        continue
+                    
+                    street, city, state, _ = parsed_original # 原有的zip_code不再使用
+                    updated_address_line = f"{street}, {city}, {state} {zip_plus4}"
+                    print(f"  获取到9位邮编: {zip_plus4}. 更新后地址: {updated_address_line}")
+                    
+                    # 使用更新后的地址进行后续处理和导入
+                    # 注意：这里的 self.parse_address 应该能成功解析 updated_address_line，因为它现在有标准格式
+                    parsed = self.parse_address(updated_address_line) 
                     if parsed:
-                        street, city, state, zip_code = parsed
-                        full_address = f"{street}, {city}, {state} {zip_code}"
+                        # street, city, state, zip_code = parsed # 重新从已更新的地址解析，确保一致性
+                        # full_address = f"{street}, {city}, {state} {zip_code}" # 这就是 updated_address_line
                         
                         # 按州分组
                         if state not in data[country]:
                             data[country][state] = []
                         
                         # 检查是否已存在
-                        if full_address not in data[country][state]:
-                            data[country][state].append(full_address)
+                        if updated_address_line not in data[country][state]:
+                            data[country][state].append(updated_address_line)
                             imported_count += 1
-                            print(f"导入地址: {full_address}")
+                            # print(f"导入地址: {updated_address_line}") # 此行可省略，因为前面已有更新日志
                         else:
-                            print(f"地址已存在，跳过: {full_address}")
+                            print(f"  地址已存在，跳过: {updated_address_line}")
                     else:
-                        print(f"第 {line_num} 行解析失败: {line.strip()}")
+                        # 理论上这里不应该发生，因为updated_address_line是标准化的
+                        print(f"警告: 更新后的地址 {updated_address_line} 解析失败，跳过。", file=sys.stderr)
         
         except Exception as e:
             print(f"读取文件时出错: {e}", file=sys.stderr)

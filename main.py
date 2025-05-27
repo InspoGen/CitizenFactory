@@ -347,7 +347,7 @@ def main():
             assignment_date = high_group_loader.estimate_group_assignment_date(area, group)
             if assignment_date:
                 assign_year, assign_month = assignment_date
-                print(f"\n估计分配时间: {assign_year}-{assign_month:02d}")
+                print(f"\n估计分配时间: {int(assign_year)}-{int(assign_month):02d}")
             
             print("=" * 50)
             
@@ -490,7 +490,7 @@ def main():
                 name = person["name"]
                 birthday = person["birthday"]
                 # 文件名格式：姓名-yymmdd(生日).json
-                filename = f"{name['last_name']}{name['first_name']}-{birthday}.json"
+                filename = f"{name['first_name']}{name['last_name']}-{birthday}.json"
                 backup_file = os.path.join(backup_dir, filename)
 
                 with open(backup_file, 'w', encoding='utf-8') as f:

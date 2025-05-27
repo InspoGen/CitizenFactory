@@ -27,12 +27,10 @@ class PersonGenerator:
             enable_ssn_validation: 是否启用SSN验证
         """
         self.data_loader = data_loader
+        self.enable_ssn_validation = enable_ssn_validation
         # 初始化高组清单加载器
         self.high_group_loader = HighGroupLoader()
-        # 静默加载，不输出统计信息以保持JSON格式纯净
-
         # SSN验证器
-        self.enable_ssn_validation = enable_ssn_validation
         if enable_ssn_validation:
             self.ssn_validator = SSNValidator(timeout=5)
         else:
@@ -203,7 +201,7 @@ class PersonGenerator:
 
         birth_day = random.randint(1, max_day)
 
-        return f"{birth_year}{birth_month:02d}{birth_day:02d}"
+        return f"{int(birth_year)}{int(birth_month):02d}{int(birth_day):02d}"
 
     def generate_phone(self, country: str, state: str) -> str:
         """
@@ -249,10 +247,10 @@ class PersonGenerator:
         line = random.randint(0, 9999)
 
         # 格式化电话号码
-        return f"({area_code}) {exchange}-{line:04d}"
+        return f"({int(area_code)}) {int(exchange)}-{int(line):04d}"
 
     def generate_ssn(self, country: str, state: str = None,
-                     birth_year: int = None) -> Tuple[str, bool]:
+                     birth_year: int = None) -> Tuple[str, Dict[str, Any]]:
         """
         生成社会保障号（支持在线验证）
 
@@ -262,32 +260,56 @@ class PersonGenerator:
             birth_year: 出生年份（用于确保SSN发放时间合理）
 
         Returns:
-            Tuple[str, bool]: (SSN字符串, 是否验证通过)
+            Tuple[str, Dict[str, Any]]: (SSN字符串, 验证状态详情)
         """
         if not self.enable_ssn_validation:
-            # 如果没有启用验证，返回SSN和False
+            # 如果没有启用验证，返回SSN和未验证状态
             ssn = self._generate_ssn_internal(country, state, birth_year)
-            return ssn, False
+            return ssn, {
+                "status": "not_verified",
+                "verified": False,
+                "details": None,
+                "error": None
+            }
 
-        # 启用验证的情况下，尝试生成并验证SSN
-        max_attempts = 10  # 最多尝试10次
-
+        # 启用验证的情况下，只接受验证通过的SSN
+        max_attempts = 100  # 增加到100次尝试
+        
         for attempt in range(max_attempts):
             ssn = self._generate_ssn_internal(country, state, birth_year)
 
             try:
-                # 使用简化验证方法
-                is_verified = self.ssn_validator.validate_ssn_simple(
+                # 使用详细验证方法
+                validation_result = self.ssn_validator.validate_ssn_with_details(
                     ssn, state, birth_year)
-                if is_verified:
-                    return ssn, True
-                # 验证失败，继续下一次尝试
-            except Exception:
-                # 验证过程中出现异常，返回当前SSN和False
-                return ssn, False
-
-        # 如果所有尝试都失败，返回最后一次生成的SSN和False
-        return ssn, False
+                
+                # 只接受完全验证通过的SSN（状态为verified_valid且validation_passed为True）
+                if (validation_result.get("validation_passed") == True and 
+                    validation_result.get("validation_status") == "verified_valid"):
+                    return ssn, {
+                        "status": validation_result.get("validation_status", "verified_valid"),
+                        "verified": True,
+                        "details": validation_result,
+                        "error": None
+                    }
+                
+                # 记录尝试进度（每20次显示一次）
+                if attempt > 0 and attempt % 20 == 0:
+                    print(f"SSN生成尝试进度: {attempt}/{max_attempts} (当前状态: {validation_result.get('validation_status', 'unknown')})")
+                
+            except Exception as e:
+                # 验证过程中出现异常，继续尝试
+                if attempt % 20 == 0:
+                    print(f"SSN验证异常 (尝试 {attempt}): {str(e)}")
+                continue
+        
+        # 100次尝试都未成功，返回失败
+        return None, {
+            "status": "generation_failed_strict",
+            "verified": False,
+            "details": None,
+            "error": f"经过{max_attempts}次尝试仍无法生成验证通过的SSN"
+        }
 
     def _generate_ssn_internal(
             self,
@@ -350,26 +372,44 @@ class PersonGenerator:
                 current_year - 30, current_year)
 
         # 3. 使用高组清单数据获取合适的组号
-        # 首先检查是否应该在我们的数据范围内分配SSN
-        our_data_start_year = 2003
-        our_data_end_year = 2011
+        # 我们有1985-2011年的完整High Group数据
+        available_years = self.high_group_loader.get_available_years()
+        our_data_start_year = min(available_years) if available_years else 1985
+        our_data_end_year = max(available_years) if available_years else 2011
 
-        if estimated_issue_year < our_data_start_year:
-            # 应该在我们数据范围之前分配的SSN，使用历史估算方法
-            group_number = self._generate_historical_group(
-                birth_year, estimated_issue_year)
-        elif estimated_issue_year <= our_data_end_year and self.high_group_loader.high_group_data:
-            # 在我们数据范围内，使用真实的高组清单数据
-            group_number = self.high_group_loader.get_suitable_group_for_birth_date(
-                area_number, birth_year or (estimated_issue_year - 16), 6)
+        if self.high_group_loader.high_group_data and birth_year:
+            # 使用激进策略：A年出生的人用(A+5)年的High Group数据
+            # 这样可以确保SSN发放时间总是在出生后，避免验证失败
+            group_number = self.high_group_loader.get_conservative_groups_for_birth_date(
+                area_number, birth_year, 6)
 
             if group_number is None:
-                # 如果没有对应的数据，回退到传统方法
-                group_number = self._generate_fallback_group(
-                    estimated_issue_year)
+                # 如果激进策略失败，回退到原方法
+                group_number = self.high_group_loader.get_suitable_group_for_birth_date(
+                    area_number, birth_year, 6)
+                
+            if group_number is None:
+                # 如果都失败，使用传统方法
+                group_number = self._generate_fallback_group(estimated_issue_year)
+        elif birth_year and estimated_issue_year < our_data_start_year:
+            # 应该在我们数据范围之前分配的SSN，但仍要确保合理性
+            # 对于较早出生的人，也尽量使用激进策略
+            if birth_year >= 1970:  # 1970年以后出生的人可以尝试使用数据范围内的策略
+                group_number = self.high_group_loader.get_conservative_groups_for_birth_date(
+                    area_number, birth_year, 6)
+                if group_number is None:
+                    group_number = self._generate_historical_group(birth_year, estimated_issue_year)
+            else:
+                group_number = self._generate_historical_group(birth_year, estimated_issue_year)
         else:
-            # 2011年后或没有高组清单数据时：使用回退方法
-            group_number = self._generate_fallback_group(estimated_issue_year)
+            # 2011年后或没有高组清单数据时：尝试激进策略，然后回退
+            if birth_year and self.high_group_loader.high_group_data:
+                group_number = self.high_group_loader.get_conservative_groups_for_birth_date(
+                    area_number, birth_year, 6)
+                if group_number is None:
+                    group_number = self._generate_fallback_group(estimated_issue_year)
+            else:
+                group_number = self._generate_fallback_group(estimated_issue_year)
 
         # 4. 生成序列号，考虑时间因素和真实性
         if estimated_issue_year <= 2011:
@@ -391,7 +431,7 @@ class PersonGenerator:
             serial_number = random.randint(1, 9999)
 
         # 5. 验证生成的SSN时间合理性
-        generated_ssn = f"{area_number:03d}-{group_number:02d}-{serial_number:04d}"
+        generated_ssn = f"{int(area_number):03d}-{int(group_number):02d}-{int(serial_number):04d}"
 
         if birth_year and self.high_group_loader.high_group_data:
             is_valid = self.high_group_loader.validate_ssn_timing(
@@ -401,7 +441,7 @@ class PersonGenerator:
                 # 如果不合理，重新生成一个较早的组号
                 group_number = max(1, group_number - random.randint(5, 15))
                 group_number = min(group_number, 99)
-                generated_ssn = f"{area_number:03d}-{group_number:02d}-{serial_number:04d}"
+                generated_ssn = f"{int(area_number):03d}-{int(group_number):02d}-{int(serial_number):04d}"
 
         return generated_ssn
 
@@ -434,7 +474,7 @@ class PersonGenerator:
                 sequence[:min(len(sequence), (estimated_issue_year - 1950) * 2)])
         elif estimated_issue_year <= 1980:
             # 1970-1980：可能到达组号40-50范围
-            max_group = min(50, (estimated_issue_year - 1950) * 1.5)
+            max_group = min(50, int((estimated_issue_year - 1950) * 1.5))
             # 按SSN分配顺序选择
             sequence = [1, 3, 5, 7, 9] + \
                 list(range(10, 99, 2)) + [2, 4, 6, 8] + list(range(11, 100, 2))
@@ -442,18 +482,36 @@ class PersonGenerator:
             return random.choice(valid_groups)
         elif estimated_issue_year <= 1990:
             # 1980-1990：可能到达组号60-80范围
-            max_group = min(80, (estimated_issue_year - 1950) * 1.2)
+            max_group = min(80, int((estimated_issue_year - 1950) * 1.2))
             sequence = [1, 3, 5, 7, 9] + \
                 list(range(10, 99, 2)) + [2, 4, 6, 8] + list(range(11, 100, 2))
             valid_groups = [g for g in sequence if g <= max_group]
             return random.choice(valid_groups)
         else:
-            # 1990-2003：可能到达更高的组号，但仍然有限制
-            max_group = min(95, 30 + (estimated_issue_year - 1990) * 5)
+            # 1990-2003：应该使用更高的组号，因为早期组号已经发放完了
+            if estimated_issue_year <= 1995:
+                # 1990-1995：使用70-85范围的组号
+                min_group = 70
+                max_group = 85
+            elif estimated_issue_year <= 2000:
+                # 1995-2000：使用85-95范围的组号  
+                min_group = 85
+                max_group = 95
+            else:
+                # 2000-2003：使用95-99范围的组号
+                min_group = 95
+                max_group = 99
+                
+            # 从合适的范围选择组号
             sequence = [1, 3, 5, 7, 9] + \
                 list(range(10, 99, 2)) + [2, 4, 6, 8] + list(range(11, 100, 2))
-            valid_groups = [g for g in sequence if g <= max_group]
-            return random.choice(valid_groups)
+            valid_groups = [g for g in sequence if min_group <= g <= max_group]
+            
+            if valid_groups:
+                return random.choice(valid_groups)
+            else:
+                # 如果没有找到合适的组号，使用较高的组号
+                return random.randint(min_group, max_group)
 
     def _generate_fallback_group(self, estimated_issue_year: int) -> int:
         """
@@ -471,14 +529,17 @@ class PersonGenerator:
                 return random.choice([1, 3, 5, 7, 9, 11, 13, 15, 17, 19])
             else:
                 return random.choice([10, 12, 14, 16, 18, 20])
+        elif estimated_issue_year <= 1995:
+            # 1990-1995：使用70-85范围的组号
+            return random.randint(70, 85)
         elif estimated_issue_year <= 2000:
-            # 中期：扩展到更多组号
-            return random.randint(1, 50)
+            # 1995-2000：使用85-95范围的组号
+            return random.randint(85, 95)
         elif estimated_issue_year <= 2011:
-            # 后期：可以使用更大的组号
-            return random.randint(1, 98)
+            # 2000-2011：使用95-99范围的组号
+            return random.randint(95, 99)
         else:
-            # 2011年后：完全随机
+            # 2011年后：完全随机（随机化政策）
             return random.randint(1, 99)
 
     def generate_address(self, country: str, state: str) -> Dict[str, str]:
@@ -632,8 +693,13 @@ class PersonGenerator:
         parent_phone = self.generate_phone(country, parent_address["state"])
 
         # 父母SSN - 使用父母的出生年份
-        ssn, is_verified = self.generate_ssn(
+        ssn, validation_result = self.generate_ssn(
             country, parent_address["state"], int(parent_birthday[:4]))
+        
+        # 如果启用了严格验证且父母SSN生成失败，抛出异常
+        if self.enable_ssn_validation and ssn is None:
+            parent_type = "父亲" if gender == "male" else "母亲"
+            raise Exception(f"{parent_type}SSN生成失败: {validation_result['error']}")
 
         # 父母教育信息
         parent_education = self.generate_education(country, parent_address["state"],
@@ -651,7 +717,10 @@ class PersonGenerator:
             "email": parent_email,
             "ssn": {
                 "number": ssn,
-                "verified": is_verified
+                "verified": validation_result["verified"],
+                "status": validation_result["status"],
+                "details": validation_result["details"],
+                "error": validation_result["error"]
             },
             "address": parent_address,
             "education": parent_education
@@ -723,7 +792,11 @@ class PersonGenerator:
         address = self.generate_address(country, state)
 
         # 生成SSN信息（包含验证状态）
-        ssn, is_verified = self.generate_ssn(country, state, birth_year)
+        ssn, validation_result = self.generate_ssn(country, state, birth_year)
+        
+        # 如果启用了严格验证且SSN生成失败，抛出异常
+        if self.enable_ssn_validation and ssn is None:
+            raise Exception(validation_result["error"])
 
         # 生成基本信息
         person = {
@@ -739,12 +812,18 @@ class PersonGenerator:
             "parents": self.generate_parents(parents, country, state, birth_year, address, name["last_name"]),
             "ssn": {
                 "number": ssn,
-                "verified": is_verified
+                "verified": validation_result["verified"],
+                "status": validation_result["status"],
+                "details": validation_result["details"],
+                "error": validation_result["error"]
             }
         }
 
         # 添加州信息
         person["state_info"] = self.data_loader.get_state_info(
             person["country"], person["state"])
+        
+        # 添加空的备注字段
+        person["note"] = ""
 
         return person

@@ -110,7 +110,7 @@ class DataLoader:
         return list(self.countries.keys())
 
     def get_states_for_country(self, country):
-        """获取指定国家的州列表"""
+        """获取指定国家的州列表，只返回有可用数据的州"""
         if country not in self.countries:
             return []
 
@@ -118,7 +118,33 @@ class DataLoader:
         if 'states' not in country_data:
             return []
 
-        return country_data['states']
+        # 获取所有配置的州
+        all_states = country_data['states']
+        
+        # 加载地址和学校数据
+        try:
+            address_data = self.load_addresses(country)
+            school_data = self.load_schools(country)
+        except FileNotFoundError:
+            return []
+
+        # 获取有地址数据的州
+        states_with_addresses = set(address_data.get(country, {}).keys())
+        
+        # 获取有学校数据的州
+        states_with_schools = set(school_data.get(country, {}).keys())
+        
+        # 只返回同时有地址和学校数据的州
+        valid_states = states_with_addresses.intersection(states_with_schools)
+        
+        # 过滤出有效的州数据
+        filtered_states = {
+            state: info
+            for state, info in all_states.items()
+            if state in valid_states
+        }
+
+        return filtered_states
 
     def get_state_info(self, country, state_code):
         """获取州的详细信息"""

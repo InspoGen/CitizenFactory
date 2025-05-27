@@ -176,6 +176,12 @@
             border-color: #667eea;
         }
 
+        .person-card.expanded {
+            border-color: #667eea;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+            transform: translateY(-3px);
+        }
+
         .person-card h3 {
             color: #495057;
             margin-bottom: 15px;
@@ -399,6 +405,7 @@
         <div class="tabs">
             <div class="tab active" onclick="showTab('generate')">生成信息</div>
             <div class="tab" onclick="showTab('history')">历史记录</div>
+            <div class="tab" onclick="showTab('import')">导入数据</div>
         </div>
 
         <!-- 生成信息标签页 -->
@@ -465,7 +472,7 @@
 
                     <div class="form-group">
                         <label for="count">生成数量</label>
-                        <input type="number" id="count" name="count" min="1" max="50" value="2">
+                        <input type="number" id="count" name="count" min="1" max="50" value="1">
                     </div>
 
                     <div class="form-group">
@@ -500,6 +507,28 @@
             </div>
             <div id="history-results" class="cards-container"></div>
         </div>
+
+        <!-- 导入数据标签页 -->
+        <div id="import-tab" class="tab-content">
+            <h2>导入数据</h2>
+            <form id="importForm">
+                <div class="form-group">
+                    <label for="import_type">导入类型</label>
+                    <select id="import_type" name="import_type">
+                        <option value="addresses" selected>住宅地址</option>
+                        <option value="schools">学校信息</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="import_data">数据内容 (每行一条记录)</label>
+                    <textarea id="import_data" name="import_data" rows="10" style="width: 100%; padding: 10px; border: 2px solid #e9ecef; border-radius: 10px; font-size: 14px;" placeholder="请在此处粘贴要导入的数据...
+住宅地址格式: Street, City, STATE ZIP (例如: 123 Main St, Anytown, CA 90210)
+学校信息格式: School Name|Abbreviation|Type|Address (例如: Central High School|CHS|high_school|456 Oak Ave, Anytown, CA 90210)"></textarea>
+                </div>
+                <button type="submit" class="generate-btn">开始导入</button>
+            </form>
+            <div id="import-status" style="margin-top: 20px;"></div>
+        </div>
     </div>
 
     <!-- 详情模态框 -->
@@ -530,7 +559,7 @@
             document.getElementById('gender').value = 'male';
             document.getElementById('education').value = 'college';
             document.getElementById('parents').value = 'both';
-            document.getElementById('count').value = '2';
+            document.getElementById('count').value = '1';
             document.getElementById('age_min').value = '20';
             document.getElementById('age_max').value = '30';
             
@@ -555,6 +584,12 @@
                 if (e.target === this) {
                     closeModal();
                 }
+            });
+
+            // 导入表单提交事件
+            document.getElementById('importForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                importData();
             });
         });
 
@@ -793,17 +828,138 @@
                 return;
             }
 
-            // 创建新卡片并追加到现有结果中
-            people.forEach(person => {
+            // 创建新卡片并插入到现有结果的最前面
+            people.forEach((person, index) => {
                 const cardHTML = createPersonCard(person, true);
                 const cardElement = document.createElement('div');
                 cardElement.innerHTML = cardHTML;
                 const card = cardElement.firstElementChild;
+                
+                // 插入到容器的最前面（但在加载状态之后）
+                if (resultsDiv.children.length > 0) {
+                    resultsDiv.insertBefore(card, resultsDiv.children[0]);
+                } else {
                 resultsDiv.appendChild(card);
+                }
             });
         }
 
-        // 创建人员卡片
+        // 获取SSN状态信息
+        function getSSNStatusInfo(ssnInfo) {
+            if (!ssnInfo || typeof ssnInfo !== 'object') {
+                return {icon: '', desc: '未验证', color: '#6c757d'};
+            }
+            
+            const status = ssnInfo.status || 'not_verified';
+            const statusMap = {
+                'verified_valid': {icon: '✓', desc: '在线验证通过', color: '#28a745'},
+                'not_verified': {icon: '', desc: '未验证', color: '#6c757d'},
+                'timeout': {icon: '⏱', desc: '验证超时', color: '#ffc107'},
+                'network_error': {icon: '⚠', desc: '网络错误', color: '#dc3545'},
+                'blocked': {icon: '🚫', desc: '验证被阻止', color: '#dc3545'},
+                'verified_invalid': {icon: '✗', desc: '验证确认无效', color: '#dc3545'},
+                'verification_failed': {icon: '?', desc: '验证失败', color: '#dc3545'},
+                'exception': {icon: '!', desc: '验证异常', color: '#dc3545'},
+                'parse_error_valid': {icon: '✓', desc: '有效但详细信息不可用', color: '#28a745'},
+                'unknown': {icon: '', desc: '未知状态', color: '#6c757d'}
+            };
+            
+            const info = statusMap[status] || statusMap['not_verified'];
+            
+            // 如果有错误信息，简化显示
+            if (ssnInfo.error) {
+                let errorText = ssnInfo.error;
+                if (errorText.includes('有效但详细信息不可用')) {
+                    // 对于这种特殊情况，不额外添加错误信息，因为状态描述已经包含了
+                    return info;
+                } else if (errorText.length > 50) {
+                    // 如果错误信息太长，截断显示
+                    errorText = errorText.substring(0, 47) + '...';
+                }
+                
+                // 只有在状态描述没有包含错误信息时才添加
+                if (!info.desc.includes('详细信息不可用') && !info.desc.includes('信息段落缺失')) {
+                    info.desc += ` (${errorText})`;
+                }
+            }
+            
+            return info;
+        }
+
+        // 显示SSN验证按钮
+        function shouldShowVerifyButton(ssnInfo) {
+            if (!ssnInfo || typeof ssnInfo !== 'object') {
+                return true; // 旧格式，显示验证按钮
+            }
+            
+            const status = ssnInfo.status || 'not_verified';
+            // 根据你的需求，以下状态需要验证按钮：
+            // 1.未验证 : 需要验证按钮
+            // 3.timeout  :  需要验证按钮
+            // 5.信息解析有误，但是提取到验证有效  :  需要验证按钮
+            // 6.信息解析有误，但是没有提取到验证有效  :  需要验证按钮
+            
+            // 不需要验证按钮的状态：
+            // 2.验证有效 : 不需要验证按钮
+            // 4.验证无效  :  不需要验证按钮
+            
+            return ['not_verified', 'timeout', 'network_error', 'exception', 'verification_failed', 'parse_error_valid', 'blocked'].includes(status);
+        }
+
+        // 显示SSN替换按钮
+        function shouldShowReplaceButtons(ssnInfo) {
+            if (!ssnInfo || typeof ssnInfo !== 'object') {
+                return true; // 旧格式，显示替换按钮
+            }
+            
+            const status = ssnInfo.status || 'not_verified';
+            // 对于没有通过验证的SSN，显示替换按钮
+            return !['verified_valid', 'parse_error_valid'].includes(status);
+        }
+
+        // 检查卡片所有SSN是否都通过验证
+        function isCardFullyVerified(person, isGenerated = false) {
+            // 检查本人SSN
+            let mainSSNVerified = false;
+            if (typeof person.ssn === 'object') {
+                mainSSNVerified = person.ssn.status === 'verified_valid' || person.ssn.status === 'parse_error_valid';
+            }
+            
+            // 对于历史记录卡片，如果只有部分信息（没有完整的父母数据），只检查本人SSN
+            if (!isGenerated && (!person.parents || 
+                (person.parents.father && typeof person.parents.father !== 'object') ||
+                (person.parents.mother && typeof person.parents.mother !== 'object'))) {
+                // 历史记录中的简化数据，只检查本人SSN
+                return mainSSNVerified;
+            }
+            
+            // 检查父母SSN（只有在有完整父母数据时才检查）
+            let fatherSSNVerified = true; // 默认为true，如果没有父亲信息
+            let motherSSNVerified = true; // 默认为true，如果没有母亲信息
+            
+            if (person.parents && typeof person.parents === 'object') {
+                if (person.parents.father && typeof person.parents.father === 'object' && person.parents.father.ssn) {
+                    // 只要有父亲SSN信息，就必须验证通过
+                    fatherSSNVerified = false; // 默认未验证
+                    if (typeof person.parents.father.ssn === 'object') {
+                        fatherSSNVerified = person.parents.father.ssn.status === 'verified_valid' || person.parents.father.ssn.status === 'parse_error_valid';
+                    }
+                    // 如果是旧格式（字符串），则fatherSSNVerified保持false
+                }
+                
+                if (person.parents.mother && typeof person.parents.mother === 'object' && person.parents.mother.ssn) {
+                    // 只要有母亲SSN信息，就必须验证通过
+                    motherSSNVerified = false; // 默认未验证
+                    if (typeof person.parents.mother.ssn === 'object') {
+                        motherSSNVerified = person.parents.mother.ssn.status === 'verified_valid' || person.parents.mother.ssn.status === 'parse_error_valid';
+                    }
+                    // 如果是旧格式（字符串），则motherSSNVerified保持false
+                }
+            }
+            
+            return mainSSNVerified && fatherSSNVerified && motherSSNVerified;
+        }
+
         function createPersonCard(person, isGenerated = false) {
             const name = isGenerated ? 
                 `${person.name.first_name} ${person.name.last_name}` : 
@@ -812,7 +968,34 @@
             const gender = isGenerated ? (person.gender === 'male' ? '男' : '女') : person.gender;
             const address = isGenerated ? person.address.full_address : person.address;
             const phone = person.phone;
-            const ssn = isGenerated ? person.ssn.number : (typeof person.ssn === 'object' ? person.ssn.number : person.ssn);
+            
+            // 检查是否完全验证
+            const isFullyVerified = isCardFullyVerified(person, isGenerated);
+            const verificationIcon = isFullyVerified ? ' <span style="color: #28a745; font-weight: bold;" title="所有SSN均已验证通过">✓</span>' : '';
+            
+            // 处理SSN信息
+            let ssnNumber, ssnInfo;
+            if (isGenerated) {
+                ssnNumber = person.ssn.number;
+                ssnInfo = person.ssn;
+            } else {
+                // 历史记录现在也应该有完整的SSN对象
+                if (typeof person.ssn === 'object') {
+                    ssnNumber = person.ssn.number;
+                    ssnInfo = person.ssn;
+                } else {
+                    // 兼容旧格式
+                    ssnNumber = person.ssn;
+                    ssnInfo = {
+                        number: person.ssn,
+                        verified: false,
+                        status: 'not_verified',
+                        details: null,
+                        error: null
+                    };
+                }
+            }
+            
             const state = isGenerated ? 
                 `${person.state_info.name} ${person.state_info.chinese_name}` : 
                 person.state;
@@ -822,25 +1005,69 @@
             // 为生成的卡片创建唯一ID
             const cardId = isGenerated ? `card_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` : '';
 
-            // SSN验证图标 - 修复逻辑，支持生成的和历史的数据
-            let ssnVerifiedIcon = '';
-            if (isGenerated && person.ssn && person.ssn.verified) {
-                ssnVerifiedIcon = ' <span class="verified-icon" style="color: #28a745; font-weight: bold;" title="SSN在线验证通过">✓</span>';
-            } else if (!isGenerated && typeof person.ssn === 'object' && person.ssn.verified) {
-                ssnVerifiedIcon = ' <span class="verified-icon" style="color: #28a745; font-weight: bold;" title="SSN在线验证通过">✓</span>';
+            // SSN验证状态图标
+            const statusInfo = getSSNStatusInfo(ssnInfo);
+            const ssnStatusIcon = statusInfo.icon ? `<span style="color: ${statusInfo.color}; font-weight: bold;" title="${statusInfo.desc}">${statusInfo.icon}</span>` : '';
+
+            // 处理备注信息
+            const personNote = isGenerated ? (person.note || '') : (person.note || '');
+            
+            // 检查是否需要显示SSN替换按钮
+            const showReplaceButtons = shouldShowReplaceButtons(ssnInfo);
+            
+            // 卡片中不需要SSN替换按钮，按钮会在详情模态框中显示
+            
+            // 备注文本框和操作按钮
+            let actionButtons = '';
+            if (isGenerated) {
+                // 生成的卡片：复制按钮、备份按钮、删除按钮和备注功能
+                actionButtons = `
+                    <div class="card-actions" style="margin-top: 15px;">
+                        <div style="display: flex; gap: 5px; margin-bottom: 10px;">
+                            <button onclick="event.stopPropagation(); copyCardData('${cardId}', 'json')" style="background: #17a2b8; color: white; border: none; padding: 5px 10px; border-radius: 10px; font-size: 11px; cursor: pointer; flex: 1;">复制JSON</button>
+                            <button onclick="event.stopPropagation(); copyCardData('${cardId}', 'txt')" style="background: #6c757d; color: white; border: none; padding: 5px 10px; border-radius: 10px; font-size: 11px; cursor: pointer; flex: 1;">复制文本</button>
+                        </div>
+                        <div class="note-section" style="margin-bottom: 10px;">
+                            <textarea placeholder="添加备注..." onchange="updateCardNote('${cardId}', this.value)" onclick="event.stopPropagation()" style="width: 100%; height: 60px; padding: 8px; border: 1px solid #ddd; border-radius: 8px; font-size: 12px; resize: vertical; font-family: inherit;">${personNote}</textarea>
+                            <button onclick="event.stopPropagation(); saveCardNote('${cardId}')" style="background: #ffc107; color: #212529; border: none; padding: 5px 15px; border-radius: 8px; font-size: 12px; cursor: pointer; margin-top: 5px; width: 100%;">保存备注</button>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="backup-btn" onclick="event.stopPropagation(); backupGeneratedCard('${cardId}')" style="background: #28a745; color: white; border: none; padding: 8px 15px; border-radius: 15px; font-size: 12px; cursor: pointer; flex: 1;">备份</button>
+                            <button class="delete-btn" onclick="event.stopPropagation(); deleteGeneratedCard('${cardId}')" style="background: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 15px; font-size: 12px; cursor: pointer; flex: 1;">删除</button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // 历史记录卡片：复制按钮、删除按钮和备注功能
+                actionButtons = `
+                    <div class="card-actions" style="margin-top: 15px;">
+                        <div style="display: flex; gap: 5px; margin-bottom: 10px;">
+                            <button onclick="event.stopPropagation(); copyCardData('${filePath}', 'json', false)" style="background: #17a2b8; color: white; border: none; padding: 5px 10px; border-radius: 10px; font-size: 11px; cursor: pointer; flex: 1;">复制JSON</button>
+                            <button onclick="event.stopPropagation(); copyCardData('${filePath}', 'txt', false)" style="background: #6c757d; color: white; border: none; padding: 5px 10px; border-radius: 10px; font-size: 11px; cursor: pointer; flex: 1;">复制文本</button>
+                        </div>
+                        <div class="note-section" style="margin-bottom: 10px;">
+                            <textarea placeholder="添加备注..." onchange="updateCardNote('${filePath}', this.value, false)" onclick="event.stopPropagation()" style="width: 100%; height: 60px; padding: 8px; border: 1px solid #ddd; border-radius: 8px; font-size: 12px; resize: vertical; font-family: inherit;">${personNote}</textarea>
+                            <button onclick="event.stopPropagation(); saveCardNote('${filePath}', false)" style="background: #ffc107; color: #212529; border: none; padding: 5px 15px; border-radius: 8px; font-size: 12px; cursor: pointer; margin-top: 5px; width: 100%;">保存备注</button>
+                        </div>
+                        <div>
+                            <button class="delete-btn" onclick="event.stopPropagation(); deleteHistoryCard('${filePath}')" style="background: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 15px; font-size: 12px; cursor: pointer; width: 100%;">删除</button>
+                        </div>
+                    </div>
+                `;
             }
 
             return `
                 <div class="person-card" onclick="showPersonDetail('${isGenerated ? cardId : filePath}', ${isGenerated})" data-person='${isGenerated ? JSON.stringify(person).replace(/'/g, "&#39;") : filePath}' ${cardId ? `id="${cardId}"` : ''}>
-                    <h3>${name}</h3>
+                    <h3>${name}${verificationIcon}</h3>
                     <div class="person-info">
                         <div><span>性别:</span><span>${gender}</span></div>
                         <div><span>年龄:</span><span>${age}岁</span></div>
                         <div><span>地址:</span><span>${address}</span></div>
                         <div><span>州:</span><span>${state}</span></div>
                         <div><span>电话:</span><span>${phone}</span></div>
-                        <div><span>社保号:</span><span>${ssn}${ssnVerifiedIcon}</span></div>
+                        <div><span>社保号:</span><span>${ssnNumber}${ssnStatusIcon ? ' ' + ssnStatusIcon : ''}</span></div>
                     </div>
+                    ${actionButtons}
                 </div>
             `;
         }
@@ -878,6 +1105,8 @@
             }
         }
 
+
+
         // 显示人员详情
         async function showPersonDetail(dataOrCardId, isGenerated) {
             const modal = document.getElementById('detailModal');
@@ -895,17 +1124,20 @@
                     const cardElement = document.getElementById(dataOrCardId);
                     const personDataStr = cardElement.getAttribute('data-person');
                     personData = JSON.parse(personDataStr);
+                    window.currentPersonFilePath = null; // 生成的数据没有文件路径
                 } else {
                     const response = await fetch(`/api/person_detail?file_path=${encodeURIComponent(dataOrCardId)}`);
                     const result = await response.json();
                     
                     if (result.success) {
                         personData = result.person;
+                        window.currentPersonFilePath = dataOrCardId; // 保存文件路径
                     } else {
                         throw new Error(result.error);
                     }
                 }
 
+                window.currentPersonData = personData; // 保存当前人员数据
                 displayPersonDetail(personData);
                 modalTitle.textContent = `${personData.name.first_name} ${personData.name.last_name} - 详细信息`;
                 
@@ -918,6 +1150,46 @@
         // 显示人员详细信息
         function displayPersonDetail(person) {
             const modalBody = document.getElementById('modalBody');
+            
+            // 处理SSN信息
+            let ssnNumber, ssnInfo;
+            if (typeof person.ssn === 'object') {
+                ssnNumber = person.ssn.number;
+                ssnInfo = person.ssn;
+            } else {
+                ssnNumber = person.ssn;
+                ssnInfo = null;
+            }
+            
+            // SSN验证状态
+            const statusInfo = getSSNStatusInfo(ssnInfo);
+            const ssnStatusIcon = statusInfo.icon ? `<span style="color: ${statusInfo.color}; font-weight: bold;" title="${statusInfo.desc}">${statusInfo.icon}</span>` : '';
+            
+            // 验证按钮和替换按钮
+            const showVerifyBtn = shouldShowVerifyButton(ssnInfo);
+            const showReplaceButtons = shouldShowReplaceButtons(ssnInfo);
+            
+            let ssnActionButtons = '';
+            if (showVerifyBtn) {
+                // 显示验证按钮
+                ssnActionButtons = `<button class="copy-btn" onclick="verifySSN('${ssnNumber}', '${person.state}', ${person.birthday ? parseInt(person.birthday.substring(0, 4)) : 'null'}, ${window.currentPersonFilePath ? `'${window.currentPersonFilePath}'` : 'null'})" style="margin-left: 10px;" id="main-verify-btn">验证SSN</button>`;
+            } else if (showReplaceButtons) {
+                // SSN验证失败，只有生成的卡片才显示替换按钮
+                const isGenerated = !window.currentPersonFilePath;
+                
+                if (isGenerated) {
+                    // 只有生成的卡片才显示替换按钮
+                    const cardIdOrPath = `card_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                    
+                    ssnActionButtons = `
+                        <div style="margin-left: 10px; display: inline-flex; gap: 5px;">
+                            <button class="copy-btn" onclick="replaceSsnRandom('${cardIdOrPath}', 'ssn', true)" style="background: #fd7e14; margin: 0;">随机更换SSN</button>
+                            <button class="copy-btn" onclick="replaceSsnValidated('${cardIdOrPath}', 'ssn', true)" style="background: #6f42c1; margin: 0;">验证更换SSN</button>
+                        </div>
+                    `;
+                }
+                // 历史记录卡片即使SSN验证失败也不显示替换按钮
+            }
             
             let html = `
                 <div class="detail-section">
@@ -997,11 +1269,15 @@
                     <div class="detail-grid">
                         <div class="detail-item">
                             <strong>社会保障号</strong>
-                            ${person.ssn.number}${person.ssn && person.ssn.verified ? ' <span class="verified-icon" style="color: #28a745; font-weight: bold;" title="SSN在线验证通过">✓</span>' : ''}
+                            ${ssnNumber}${ssnStatusIcon ? ' ' + ssnStatusIcon : ''} ${ssnActionButtons}
                         </div>
                         <div class="detail-item">
                             <strong>社会保障号（纯数字）</strong>
-                            ${removeNonDigits(person.ssn.number)}
+                            ${removeNonDigits(ssnNumber)}
+                        </div>
+                        <div class="detail-item">
+                            <strong>SSN验证状态</strong>
+                            ${statusInfo.desc}
                         </div>
                     </div>
                 </div>
@@ -1113,11 +1389,15 @@
                             </div>
                             <div class="detail-item">
                                 <strong>社保号</strong>
-                                ${person.parents.father.ssn.number}${person.parents.father.ssn && person.parents.father.ssn.verified ? ' <span class="verified-icon" style="color: #28a745; font-weight: bold;" title="SSN在线验证通过">✓</span>' : ''}
+                                ${getFatherSSNDisplay(person.parents.father)}
                             </div>
                             <div class="detail-item">
                                 <strong>社保号（纯数字）</strong>
                                 ${removeNonDigits(person.parents.father.ssn.number)}
+                            </div>
+                            <div class="detail-item">
+                                <strong>SSN验证状态</strong>
+                                ${getSSNStatusInfo(person.parents.father.ssn).desc}
                             </div>
                         </div>
                     </div>
@@ -1159,11 +1439,15 @@
                             </div>
                             <div class="detail-item">
                                 <strong>社保号</strong>
-                                ${person.parents.mother.ssn.number}${person.parents.mother.ssn && person.parents.mother.ssn.verified ? ' <span class="verified-icon" style="color: #28a745; font-weight: bold;" title="SSN在线验证通过">✓</span>' : ''}
+                                ${getMotherSSNDisplay(person.parents.mother)}
                             </div>
                             <div class="detail-item">
                                 <strong>社保号（纯数字）</strong>
                                 ${removeNonDigits(person.parents.mother.ssn.number)}
+                            </div>
+                            <div class="detail-item">
+                                <strong>SSN验证状态</strong>
+                                ${getSSNStatusInfo(person.parents.mother.ssn).desc}
                             </div>
                         </div>
                     </div>
@@ -1270,6 +1554,70 @@
             return str ? str.replace(/\D/g, '') : '';
         }
 
+        // 获取父亲SSN显示（包含状态图标和操作按钮）
+        function getFatherSSNDisplay(father) {
+            const ssnNumber = father.ssn.number;
+            const statusInfo = getSSNStatusInfo(father.ssn);
+            const ssnStatusIcon = statusInfo.icon ? `<span style="color: ${statusInfo.color}; font-weight: bold;" title="${statusInfo.desc}">${statusInfo.icon}</span>` : '';
+            
+            const showVerifyBtn = shouldShowVerifyButton(father.ssn);
+            const showReplaceButtons = shouldShowReplaceButtons(father.ssn);
+            
+            let actionButtons = '';
+            if (showVerifyBtn) {
+                actionButtons = `<button class="copy-btn" onclick="verifyParentSSN('${ssnNumber}', 'father', '${father.name.first_name} ${father.name.last_name}')" style="margin-left: 10px; font-size: 12px; padding: 5px 10px;">验证SSN</button>`;
+            } else if (showReplaceButtons) {
+                const isGenerated = !window.currentPersonFilePath;
+                
+                if (isGenerated) {
+                    // 只有生成的卡片才显示父亲SSN替换按钮
+                    const cardIdOrPath = 'father_ssn';
+                    
+                    actionButtons = `
+                        <div style="margin-left: 10px; display: inline-flex; gap: 5px;">
+                            <button class="copy-btn" onclick="replaceSsnRandom('${cardIdOrPath}', 'parents.father.ssn', true)" style="background: #fd7e14; margin: 0; font-size: 11px; padding: 4px 8px;">随机更换</button>
+                            <button class="copy-btn" onclick="replaceSsnValidated('${cardIdOrPath}', 'parents.father.ssn', true)" style="background: #6f42c1; margin: 0; font-size: 11px; padding: 4px 8px;">验证更换</button>
+                        </div>
+                    `;
+                }
+                // 历史记录中的父亲SSN即使验证失败也不显示替换按钮
+            }
+            
+            return `${ssnNumber}${ssnStatusIcon ? ' ' + ssnStatusIcon : ''} ${actionButtons}`;
+        }
+
+        // 获取母亲SSN显示（包含状态图标和操作按钮）
+        function getMotherSSNDisplay(mother) {
+            const ssnNumber = mother.ssn.number;
+            const statusInfo = getSSNStatusInfo(mother.ssn);
+            const ssnStatusIcon = statusInfo.icon ? `<span style="color: ${statusInfo.color}; font-weight: bold;" title="${statusInfo.desc}">${statusInfo.icon}</span>` : '';
+            
+            const showVerifyBtn = shouldShowVerifyButton(mother.ssn);
+            const showReplaceButtons = shouldShowReplaceButtons(mother.ssn);
+            
+            let actionButtons = '';
+            if (showVerifyBtn) {
+                actionButtons = `<button class="copy-btn" onclick="verifyParentSSN('${ssnNumber}', 'mother', '${mother.name.first_name} ${mother.name.last_name}')" style="margin-left: 10px; font-size: 12px; padding: 5px 10px;">验证SSN</button>`;
+            } else if (showReplaceButtons) {
+                const isGenerated = !window.currentPersonFilePath;
+                
+                if (isGenerated) {
+                    // 只有生成的卡片才显示母亲SSN替换按钮
+                    const cardIdOrPath = 'mother_ssn';
+                    
+                    actionButtons = `
+                        <div style="margin-left: 10px; display: inline-flex; gap: 5px;">
+                            <button class="copy-btn" onclick="replaceSsnRandom('${cardIdOrPath}', 'parents.mother.ssn', true)" style="background: #fd7e14; margin: 0; font-size: 11px; padding: 4px 8px;">随机更换</button>
+                            <button class="copy-btn" onclick="replaceSsnValidated('${cardIdOrPath}', 'parents.mother.ssn', true)" style="background: #6f42c1; margin: 0; font-size: 11px; padding: 4px 8px;">验证更换</button>
+                        </div>
+                    `;
+                }
+                // 历史记录中的母亲SSN即使验证失败也不显示替换按钮
+            }
+            
+            return `${ssnNumber}${ssnStatusIcon ? ' ' + ssnStatusIcon : ''} ${actionButtons}`;
+        }
+
         // 复制人员数据
         async function copyPersonData(format) {
             if (window.currentPersonData) {
@@ -1343,14 +1691,22 @@
         }
 
         // 显示消息
-        function showMessage(message, type) {
+        function showMessage(message, type, inModal = false) {
             const messageDiv = document.createElement('div');
             messageDiv.className = type === 'success' ? 'success' : 'error';
             messageDiv.textContent = message;
             
-            // 插入到当前活动的标签页内容中
-            const activeTab = document.querySelector('.tab-content.active');
-            activeTab.insertBefore(messageDiv, activeTab.firstChild);
+            let targetContainer;
+            
+            if (inModal && document.getElementById('detailModal').style.display === 'block') {
+                // 如果模态框打开且指定在模态框内显示，则显示在模态框内
+                targetContainer = document.getElementById('modalBody');
+                targetContainer.insertBefore(messageDiv, targetContainer.firstChild);
+            } else {
+                // 否则显示在当前活动的标签页内容中
+                targetContainer = document.querySelector('.tab-content.active');
+                targetContainer.insertBefore(messageDiv, targetContainer.firstChild);
+            }
             
             // 3秒后自动删除
             setTimeout(() => {
@@ -1364,6 +1720,1425 @@
         function clearResults() {
             const resultsDiv = document.getElementById('results');
             resultsDiv.innerHTML = '';
+        }
+
+        // 导入数据
+        async function importData() {
+            const form = document.getElementById('importForm');
+            const importType = document.getElementById('import_type').value;
+            const importDataText = document.getElementById('import_data').value;
+            const statusDiv = document.getElementById('import-status');
+            const submitBtn = form.querySelector('.generate-btn');
+
+            statusDiv.innerHTML = '<div class="loading">正在导入数据...</div>';
+            submitBtn.disabled = true;
+            submitBtn.textContent = '导入中...';
+
+            try {
+                const response = await fetch('/api/import_data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        import_type: importType, 
+                        import_data: importDataText 
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    statusDiv.innerHTML = `<div class="success">${result.message}</div>`;
+                } else {
+                    statusDiv.innerHTML = `<div class="error">导入失败: ${result.error || '未知错误'}</div>`;
+                }
+
+                if (result.errors && result.errors.length > 0) {
+                    const errorList = result.errors.map(err => `<li>${err}</li>`).join('');
+                    statusDiv.innerHTML += `<div class="error" style="margin-top: 10px;"><strong>解析错误/警告:</strong><ul>${errorList}</ul></div>`;
+                }
+
+            } catch (error) {
+                console.error('导入失败:', error);
+                statusDiv.innerHTML = `<div class="error">导入过程中发生错误: ${error.message}</div>`;
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '开始导入';
+                // 清空文本框，方便下次输入，也可以不清空让用户检查
+                // document.getElementById('import_data').value = ''; 
+            }
+        }
+
+        // 父母SSN验证功能
+        async function verifyParentSSN(ssn, parentType, parentName) {
+            console.log(`开始验证${parentType}SSN:`, ssn, parentType, parentName);
+            
+            const verifyBtn = event.target;
+            const originalText = verifyBtn.textContent;
+            
+            // 立即更新父母SSN状态为"正在验证"
+            updateParentSSNStatusInModal(ssn, parentType, '正在验证...', '#ffc107', '⏳');
+            verifyBtn.textContent = '验证中...';
+            verifyBtn.disabled = true;
+
+            try {
+                // 使用当前人员的状态信息进行验证
+                const person = window.currentPersonData;
+                console.log('准备发送验证请求，person数据:', person);
+                console.log('请求参数:', { ssn, state: person.state, birth_year: null });
+                
+                const response = await fetch('/api/verify_ssn', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        ssn: ssn,
+                        state: person.state,
+                        birth_year: null // 父母年龄可能很难确定，传null
+                    })
+                });
+                
+                console.log('HTTP响应状态:', response.status, response.statusText);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                console.log('收到父母SSN验证响应:', result);
+                console.log('验证响应处理开始 - parentType:', parentType, 'ssn:', ssn);
+                
+                if (result.success) {
+                    const validationResult = result.validation_result;
+                    
+                    // 显示验证结果消息（在模态框内显示）
+                    const statusText = getValidationStatusText(validationResult);
+                    showMessage(`${parentName} SSN验证完成: ${statusText}`, validationResult.validation_passed ? 'success' : 'error', true);
+                    console.log('父母SSN验证完成:', statusText);
+                    
+                    // 更新父母SSN数据
+                    let parent = null;
+                    if (window.currentPersonData && window.currentPersonData.parents) {
+                        parent = window.currentPersonData.parents[parentType];
+                        if (parent) {
+                            parent.ssn = {
+                                number: ssn,
+                                verified: validationResult.validation_passed,
+                                status: validationResult.validation_status,
+                                details: validationResult,
+                                error: validationResult.validation_details?.error || null
+                            };
+                        }
+                    }
+                    
+                    // 如果有文件路径，更新保存的数据
+                    if (window.currentPersonFilePath) {
+                        await updateParentSSNStatus(window.currentPersonFilePath, parentType, validationResult);
+                    }
+                    
+                    // 更新生成的卡片的父母SSN数据
+                    if (parent) {
+                        updateGeneratedCardParentSSNData(ssn, parentType, validationResult);
+                        // 更新卡片的验证状态图标
+                        updateCardVerificationIcon(ssn, parentType);
+                    }
+                    
+                    // 动态更新父母SSN的状态显示和按钮（只有在parent存在时才执行）
+                    if (parent) {
+                        const showVerifyBtn = shouldShowVerifyButton(parent.ssn);
+                        const showReplaceButtons = shouldShowReplaceButtons(parent.ssn);
+                        const isGenerated = !window.currentPersonFilePath;
+                    
+                        // 查找对应的父母section并更新按钮
+                        const modalBody = document.getElementById('modalBody');
+                        const detailSections = modalBody.querySelectorAll('.detail-section');
+                        const targetSectionName = parentType === 'father' ? '父亲信息' : '母亲信息';
+                        
+                        for (let section of detailSections) {
+                            const h3 = section.querySelector('h3');
+                            if (h3 && h3.textContent.includes(targetSectionName)) {
+                                const detailItems = section.querySelectorAll('.detail-item');
+                                
+                                for (let item of detailItems) {
+                                    const strong = item.querySelector('strong');
+                                    if (strong && strong.textContent.includes('社会保障号') && 
+                                       !strong.textContent.includes('纯数字') &&
+                                       item.textContent.includes(ssn)) {
+                                        
+                                        // 重新构建这个detail-item的内容
+                                        const statusInfo = getSSNStatusInfo(parent.ssn);
+                                        const ssnStatusIcon = statusInfo.icon ? `<span style="color: ${statusInfo.color}; font-weight: bold;" title="${statusInfo.desc}">${statusInfo.icon}</span>` : '';
+                                        
+                                        let actionButtons = '';
+                                        if (showVerifyBtn) {
+                                            actionButtons = `<button class="copy-btn" onclick="verifyParentSSN('${ssn}', '${parentType}', '${parentName}')" style="margin-left: 10px; font-size: 12px; padding: 5px 10px;">验证SSN</button>`;
+                                        } else if (showReplaceButtons && isGenerated) {
+                                            const cardIdOrPath = `${parentType}_ssn`;
+                                            actionButtons = `
+                                                <div style="margin-left: 10px; display: inline-flex; gap: 5px;">
+                                                    <button class="copy-btn" onclick="replaceSsnRandom('${cardIdOrPath}', 'parents.${parentType}.ssn', true)" style="background: #fd7e14; margin: 0; font-size: 11px; padding: 4px 8px;">随机更换</button>
+                                                    <button class="copy-btn" onclick="replaceSsnValidated('${cardIdOrPath}', 'parents.${parentType}.ssn', true)" style="background: #6f42c1; margin: 0; font-size: 11px; padding: 4px 8px;">验证更换</button>
+                                                </div>
+                                            `;
+                                        }
+                                        
+                                        // 更新item内容
+                                        item.innerHTML = `<strong>社会保障号</strong>${ssn}${ssnStatusIcon ? ' ' + ssnStatusIcon : ''} ${actionButtons}`;
+                                        console.log(`${parentType}SSN按钮状态已更新`);
+                                        break;
+                                    }
+                                }
+                                
+                                // 在同一个section中查找并更新SSN验证状态显示
+                                for (let item of detailItems) {
+                                    const strong = item.querySelector('strong');
+                                    if (strong && strong.textContent.includes('SSN验证状态')) {
+                                        const statusInfo = getSSNStatusInfo(parent.ssn);
+                                        const strongHTML = strong.outerHTML;
+                                        item.innerHTML = strongHTML + `<span style="color: ${statusInfo.color}; font-weight: bold;">${statusInfo.icon ? statusInfo.icon + ' ' : ''}${statusInfo.desc}</span>`;
+                                        console.log(`${parentType}SSN状态显示已更新: ${statusInfo.desc}`);
+                                        break;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // 父母SSN验证成功完成
+                    // 注意：原来的verifyBtn已经被上面的innerHTML替换删除了，所以不需要恢复按钮状态
+                    console.log(`父母SSN验证成功完成，parentType: ${parentType}, ssn: ${ssn}`);
+                    
+                } else {
+                    // 验证API调用失败
+                    const errorMsg = result.error || '未知错误';
+                    console.log('父母SSN验证失败:', errorMsg);
+                    updateParentSSNStatusInModal(ssn, parentType, `验证失败: ${errorMsg}`, '#dc3545', '!');
+                    showMessage(`${parentName} SSN验证失败: ${errorMsg}`, 'error', true);
+                    
+                    // 恢复按钮
+                    verifyBtn.textContent = originalText;
+                    verifyBtn.disabled = false;
+                }
+                
+            } catch (error) {
+                console.error('验证父母SSN时发生错误:', error);
+                
+                // 显示具体的错误信息
+                let errorMessage = '验证过程中发生错误';
+                if (error.message.includes('HTTP')) {
+                    errorMessage = `网络错误: ${error.message}`;
+                } else if (error.message.includes('Failed to fetch')) {
+                    errorMessage = '网络连接失败，请检查网络连接';
+                } else {
+                    errorMessage = `验证异常: ${error.message}`;
+                }
+                
+                updateParentSSNStatusInModal(ssn, parentType, errorMessage, '#dc3545', '!');
+                showMessage(`${parentName} 验证失败: ${errorMessage}`, 'error', true);
+                
+                // 恢复按钮状态
+                verifyBtn.textContent = originalText;
+                verifyBtn.disabled = false;
+                
+                // 更新父母SSN数据为异常状态
+                if (window.currentPersonData && window.currentPersonData.parents) {
+                    const parent = window.currentPersonData.parents[parentType];
+                    if (parent && typeof parent.ssn === 'object') {
+                        parent.ssn.status = 'exception';
+                        parent.ssn.error = errorMessage;
+                    }
+                }
+            }
+        }
+
+        // 更新模态框中的父母SSN状态显示（使用统一的更新函数）
+        function updateParentSSNStatusInModal(ssn, parentType, statusText, color, icon) {
+            updateSSNStatusInModal(ssn, statusText, color, icon, parentType);
+        }
+
+        // SSN验证功能
+        async function verifySSN(ssn, state, birthYear, filePath) {
+            const verifyBtn = event.target;
+            const originalText = verifyBtn.textContent;
+            
+            // 立即更新UI状态为"正在验证"
+            updateSSNStatusInModal(ssn, '正在验证...', '#ffc107', '⏳');
+            verifyBtn.textContent = '验证中...';
+            verifyBtn.disabled = true;
+            
+            // 添加轻微延迟以确保UI更新
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            try {
+                const response = await fetch('/api/verify_ssn', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        ssn: ssn,
+                        state: state,
+                        birth_year: birthYear
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    const validationResult = result.validation_result;
+                    
+                    console.log('验证结果:', validationResult);
+                    
+                    // 更新当前人员数据
+                    if (window.currentPersonData) {
+                        console.log('更新前的SSN数据:', window.currentPersonData.ssn);
+                        
+                        if (typeof window.currentPersonData.ssn === 'object') {
+                            window.currentPersonData.ssn.verified = validationResult.validation_passed;
+                            window.currentPersonData.ssn.status = validationResult.validation_status;
+                            window.currentPersonData.ssn.details = validationResult;
+                            window.currentPersonData.ssn.error = validationResult.validation_details?.error || null;
+                        } else {
+                            window.currentPersonData.ssn = {
+                                number: ssn,
+                                verified: validationResult.validation_passed,
+                                status: validationResult.validation_status,
+                                details: validationResult,
+                                error: validationResult.validation_details?.error || null
+                            };
+                        }
+                        
+                        console.log('更新后的SSN数据:', window.currentPersonData.ssn);
+                        
+                        // 使用更精准的状态更新，而不是重新渲染整个模态框
+                        const statusInfo = getSSNStatusInfo(window.currentPersonData.ssn);
+                        console.log('计算出的状态信息:', statusInfo);
+                        
+                        updateSSNStatusInModal(ssn, statusInfo.desc, statusInfo.color, statusInfo.icon);
+                        
+                        // 更新验证按钮和替换按钮的显示状态
+                        const showVerifyBtn = shouldShowVerifyButton(window.currentPersonData.ssn);
+                        const showReplaceButtons = shouldShowReplaceButtons(window.currentPersonData.ssn);
+                        const isGenerated = !window.currentPersonFilePath;
+                        
+                        console.log('是否显示验证按钮:', showVerifyBtn);
+                        console.log('是否显示替换按钮:', showReplaceButtons);
+                        console.log('是否为生成的卡片:', isGenerated);
+                        
+                        // 查找SSN所在的detail-item
+                        const modalBody = document.getElementById('modalBody');
+                        const detailSections = modalBody.querySelectorAll('.detail-section');
+                        
+                        for (let section of detailSections) {
+                            const h3 = section.querySelector('h3');
+                            if (h3 && h3.textContent.includes('身份信息')) {
+                                const detailItems = section.querySelectorAll('.detail-item');
+                                
+                                for (let item of detailItems) {
+                                    const strong = item.querySelector('strong');
+                                    if (strong && strong.textContent.includes('社会保障号') && 
+                                       !strong.textContent.includes('纯数字') &&
+                                       item.textContent.includes(ssn)) {
+                                        
+                                        // 重新构建这个detail-item的内容
+                                        const statusInfo = getSSNStatusInfo(window.currentPersonData.ssn);
+                                        const ssnStatusIcon = statusInfo.icon ? `<span style="color: ${statusInfo.color}; font-weight: bold;" title="${statusInfo.desc}">${statusInfo.icon}</span>` : '';
+                                        
+                                        let actionButtons = '';
+                                        if (showVerifyBtn) {
+                                            actionButtons = `<button class="copy-btn" onclick="verifySSN('${ssn}', '${window.currentPersonData.state}', ${window.currentPersonData.birthday ? parseInt(window.currentPersonData.birthday.substring(0, 4)) : 'null'}, ${window.currentPersonFilePath ? `'${window.currentPersonFilePath}'` : 'null'})" style="margin-left: 10px;" id="main-verify-btn">验证SSN</button>`;
+                                        } else if (showReplaceButtons && isGenerated) {
+                                            const cardIdOrPath = `card_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                                            actionButtons = `
+                                                <div style="margin-left: 10px; display: inline-flex; gap: 5px;">
+                                                    <button class="copy-btn" onclick="replaceSsnRandom('${cardIdOrPath}', 'ssn', true)" style="background: #fd7e14; margin: 0;">随机更换SSN</button>
+                                                    <button class="copy-btn" onclick="replaceSsnValidated('${cardIdOrPath}', 'ssn', true)" style="background: #6f42c1; margin: 0;">验证更换SSN</button>
+                                                </div>
+                                            `;
+                                        }
+                                        
+                                        // 更新item内容
+                                        item.innerHTML = `<strong>社会保障号</strong>${ssn}${ssnStatusIcon ? ' ' + ssnStatusIcon : ''} ${actionButtons}`;
+                                        console.log('SSN按钮状态已更新');
+                                        break;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    } else {
+                        console.warn('window.currentPersonData 未定义');
+                    }
+                    
+                    // 如果有文件路径，更新保存的数据
+                    if (filePath) {
+                        await updatePersonSSNStatus(filePath, validationResult);
+                    }
+                    
+                    // 显示验证结果消息（在模态框内显示）
+                    const statusText = getValidationStatusText(validationResult);
+                    showMessage(`SSN验证完成: ${statusText}`, validationResult.validation_passed ? 'success' : 'error', true);
+                    
+                    // 更新所有卡片的SSN状态显示
+                    updateHistoryCardSSNStatus(ssn, validationResult);
+                    
+                    // 更新生成的卡片的数据属性
+                    updateGeneratedCardData(ssn, validationResult);
+                    
+                    // 更新卡片的验证状态图标
+                    updateCardVerificationIcon(ssn);
+                    
+                } else {
+                    // 验证API调用失败
+                    const errorMsg = result.error || '未知错误';
+                    console.error('API返回失败:', result);
+                    
+                    updateSSNStatusInModal(ssn, `验证失败: ${errorMsg}`, '#dc3545', '!');
+                    showMessage('验证失败: ' + errorMsg, 'error', true);
+                    
+                    // 更新当前人员数据为失败状态
+                    if (window.currentPersonData) {
+                        if (typeof window.currentPersonData.ssn === 'object') {
+                            window.currentPersonData.ssn.status = 'verification_failed';
+                            window.currentPersonData.ssn.error = errorMsg;
+                            window.currentPersonData.ssn.verified = false;
+                        } else {
+                            window.currentPersonData.ssn = {
+                                number: ssn,
+                                verified: false,
+                                status: 'verification_failed',
+                                details: null,
+                                error: errorMsg
+                            };
+                        }
+                    }
+                    
+                    // 恢复按钮
+                    verifyBtn.textContent = originalText;
+                    verifyBtn.disabled = false;
+                }
+                
+            } catch (error) {
+                console.error('验证SSN时发生错误:', error);
+                
+                // 显示具体的错误信息
+                let errorMessage = '验证过程中发生错误';
+                if (error.message.includes('HTTP')) {
+                    errorMessage = `网络错误: ${error.message}`;
+                } else if (error.message.includes('Failed to fetch')) {
+                    errorMessage = '网络连接失败，请检查网络连接';
+                } else {
+                    errorMessage = `验证异常: ${error.message}`;
+                }
+                
+                updateSSNStatusInModal(ssn, errorMessage, '#dc3545', '!');
+                showMessage(errorMessage, 'error', true);
+                
+                // 更新当前人员数据为异常状态
+                if (window.currentPersonData) {
+                    if (typeof window.currentPersonData.ssn === 'object') {
+                        window.currentPersonData.ssn.status = 'exception';
+                        window.currentPersonData.ssn.error = errorMessage;
+                        window.currentPersonData.ssn.verified = false;
+                    } else {
+                        window.currentPersonData.ssn = {
+                            number: ssn,
+                            verified: false,
+                            status: 'exception',
+                            details: null,
+                            error: errorMessage
+                        };
+                    }
+                }
+                
+                // 恢复按钮状态
+                verifyBtn.textContent = originalText;
+                verifyBtn.disabled = false;
+            }
+        }
+
+        // 更新模态框中的SSN状态显示
+        function updateSSNStatusInModal(ssn, statusText, color, icon, parentType = null) {
+            // 查找模态框中的SSN验证状态显示元素
+            const modalBody = document.getElementById('modalBody');
+            if (!modalBody) {
+                console.warn('模态框主体未找到，无法更新SSN状态显示');
+                return;
+            }
+            
+            let statusUpdated = false;
+            let iconUpdated = false;
+            
+            if (parentType) {
+                // 父母SSN的情况：通过section层级定位
+                const sections = modalBody.querySelectorAll('.detail-section');
+                const targetSectionName = parentType === 'father' ? '父亲信息' : '母亲信息';
+                
+                for (let section of sections) {
+                    const h3 = section.querySelector('h3');
+                    if (h3 && h3.textContent.includes(targetSectionName)) {
+                        // 在正确的section中查找SSN相关的items
+                        const detailItems = section.querySelectorAll('.detail-item');
+                        
+                        for (let item of detailItems) {
+                            const strong = item.querySelector('strong');
+                            
+                            if (strong && strong.textContent.includes('SSN验证状态')) {
+                                // 更新状态显示
+                                const strongHTML = strong.outerHTML;
+                                item.innerHTML = strongHTML + `<span style="color: ${color}; font-weight: bold;">${icon ? icon + ' ' : ''}${statusText}</span>`;
+                                statusUpdated = true;
+                                console.log(`父母SSN状态已更新: ${statusText} (${parentType})`);
+                            } else if (strong && strong.textContent.includes('社会保障号') && 
+                                     !strong.textContent.includes('纯数字') &&
+                                     item.textContent.includes(ssn)) {
+                                // 更新SSN号码旁边的图标
+                                const strongHTML = strong.outerHTML;
+                                const iconHTML = icon ? `<span style="color: ${color}; font-weight: bold;" title="${statusText}">${icon}</span>` : '';
+                                const verifyBtn = item.querySelector('button');
+                                const verifyBtnHTML = verifyBtn ? verifyBtn.outerHTML : '';
+                                
+                                // 重构SSN显示内容
+                                item.innerHTML = strongHTML + `${ssn}${iconHTML ? ' ' + iconHTML : ''} ${verifyBtnHTML}`;
+                                iconUpdated = true;
+                                console.log(`父母SSN图标已更新: ${icon} (${parentType})`);
+                            }
+                        }
+                        break; // 找到对应section后退出
+                    }
+                }
+            } else {
+                // 本人SSN的情况：在身份信息section中查找
+                const sections = modalBody.querySelectorAll('.detail-section');
+                
+                for (let section of sections) {
+                    const h3 = section.querySelector('h3');
+                    // 查找"身份信息"section
+                    if (h3 && h3.textContent.includes('身份信息')) {
+                        const detailItems = section.querySelectorAll('.detail-item');
+                        
+                        for (let item of detailItems) {
+                            const strong = item.querySelector('strong');
+                            
+                            if (strong && strong.textContent.includes('SSN验证状态')) {
+                                // 更新状态显示
+                                const strongHTML = strong.outerHTML;
+                                item.innerHTML = strongHTML + `<span style="color: ${color}; font-weight: bold;">${icon ? icon + ' ' : ''}${statusText}</span>`;
+                                statusUpdated = true;
+                                console.log(`本人SSN状态已更新: ${statusText}`);
+                            } else if (strong && strong.textContent.includes('社会保障号') && 
+                                     !strong.textContent.includes('纯数字') &&
+                                     item.textContent.includes(ssn)) {
+                                // 更新SSN号码旁边的图标
+                                const strongHTML = strong.outerHTML;
+                                const iconHTML = icon ? `<span style="color: ${color}; font-weight: bold;" title="${statusText}">${icon}</span>` : '';
+                                const verifyBtn = item.querySelector('button');
+                                const verifyBtnHTML = verifyBtn ? verifyBtn.outerHTML : '';
+                                
+                                // 重构SSN显示内容
+                                item.innerHTML = strongHTML + `${ssn}${iconHTML ? ' ' + iconHTML : ''} ${verifyBtnHTML}`;
+                                iconUpdated = true;
+                                console.log(`本人SSN图标已更新: ${icon}`);
+                            }
+                        }
+                        break; // 找到对应section后退出
+                    }
+                }
+            }
+            
+            // 如果没有找到状态显示元素，输出警告
+            if (!statusUpdated && !iconUpdated) {
+                console.warn(`未找到SSN显示元素: ${ssn} (${parentType || '本人'})`);
+            }
+        }
+
+        // 更新保存的人员SSN状态
+        async function updatePersonSSNStatus(filePath, validationResult) {
+            try {
+                const response = await fetch('/api/update_person_ssn', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        file_path: filePath,
+                        validation_result: validationResult
+                    })
+                });
+
+                const result = await response.json();
+                if (!result.success) {
+                    console.error('更新SSN状态失败:', result.error);
+                }
+            } catch (error) {
+                console.error('更新SSN状态时发生错误:', error);
+            }
+        }
+
+        // 更新保存的父母SSN状态
+        async function updateParentSSNStatus(filePath, parentType, validationResult) {
+            try {
+                const response = await fetch('/api/update_parent_ssn', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        file_path: filePath,
+                        parent_type: parentType,
+                        validation_result: validationResult
+                    })
+                });
+
+                const result = await response.json();
+                if (!result.success) {
+                    console.error('更新父母SSN状态失败:', result.error);
+                }
+            } catch (error) {
+                console.error('更新父母SSN状态时发生错误:', error);
+            }
+        }
+
+        // 获取验证状态文本
+        function getValidationStatusText(validationResult) {
+            const status = validationResult.validation_status;
+            const passed = validationResult.validation_passed;
+            
+            if (passed) {
+                return '在线验证通过';
+            } else {
+                switch (status) {
+                    case 'timeout':
+                        return '验证超时';
+                    case 'network_error':
+                        return '网络错误';
+                    case 'blocked':
+                        return '验证被阻止';
+                    case 'verified_invalid':
+                        return '验证确认无效';
+                    default:
+                        return '验证失败';
+                }
+            }
+        }
+
+        // 更新历史记录中卡片的SSN状态显示
+        function updateHistoryCardSSNStatus(ssn, validationResult) {
+            // 查找所有包含该SSN的卡片（包括生成的和历史记录的）
+            const allCards = document.querySelectorAll('.person-card');
+            allCards.forEach(card => {
+                // 查找SSN显示元素（最后一个包含社保号的div）
+                const personInfoDivs = card.querySelectorAll('.person-info div');
+                let ssnDiv = null;
+                
+                // 查找包含社保号的div
+                personInfoDivs.forEach(div => {
+                    const spans = div.querySelectorAll('span');
+                    if (spans.length >= 2 && spans[0].textContent.includes('社保号')) {
+                        ssnDiv = div;
+                    }
+                });
+                
+                if (ssnDiv) {
+                    const ssnSpan = ssnDiv.querySelector('span:last-child');
+                    if (ssnSpan && ssnSpan.textContent.includes(ssn)) {
+                        // 更新状态图标
+                        const statusInfo = getSSNStatusInfo({
+                            status: validationResult.validation_status,
+                            verified: validationResult.validation_passed,
+                            error: validationResult.validation_details?.error
+                        });
+                        // 重新设置SSN显示内容
+                        const ssnStatusIcon = statusInfo.icon ? `<span style="color: ${statusInfo.color}; font-weight: bold;" title="${statusInfo.desc}">${statusInfo.icon}</span>` : '';
+                        ssnSpan.innerHTML = `${ssn}${ssnStatusIcon ? ' ' + ssnStatusIcon : ''}`;
+                    }
+                }
+                // 同步data-person属性（如果有）
+                if (card.hasAttribute('data-person')) {
+                    try {
+                        const personDataStr = card.getAttribute('data-person');
+                        if (personDataStr && personDataStr.startsWith('{')) {
+                            const personData = JSON.parse(personDataStr.replace(/&#39;/g, "'"));
+                            if (personData.ssn && personData.ssn.number === ssn) {
+                                personData.ssn.verified = validationResult.validation_passed;
+                                personData.ssn.status = validationResult.validation_status;
+                                personData.ssn.details = validationResult;
+                                personData.ssn.error = validationResult.validation_details?.error || null;
+                                card.setAttribute('data-person', JSON.stringify(personData).replace(/'/g, "&#39;"));
+                            }
+                        }
+                    } catch (e) { /* 忽略 */ }
+                }
+            });
+        }
+
+        // 更新生成的卡片的数据属性
+        function updateGeneratedCardData(ssn, validationResult) {
+            // 查找所有生成的卡片（有data-person属性的）
+            const generatedCards = document.querySelectorAll('.person-card[data-person^="{"]');
+            generatedCards.forEach(card => {
+                try {
+                    const personDataStr = card.getAttribute('data-person');
+                    if (personDataStr) {
+                        const personData = JSON.parse(personDataStr);
+                        
+                        // 检查是否是目标SSN
+                        let cardSSN = '';
+                        if (typeof personData.ssn === 'object') {
+                            cardSSN = personData.ssn.number;
+                        } else {
+                            cardSSN = personData.ssn;
+                        }
+                        
+                        if (cardSSN === ssn) {
+                            // 更新SSN数据
+                            personData.ssn = {
+                                number: ssn,
+                                verified: validationResult.validation_passed,
+                                status: validationResult.validation_status,
+                                details: validationResult,
+                                error: validationResult.validation_details?.error || null
+                            };
+                            
+                            // 更新卡片的data-person属性
+                            card.setAttribute('data-person', JSON.stringify(personData).replace(/'/g, "&#39;"));
+                        }
+                    }
+                } catch (error) {
+                    console.error('更新卡片数据时出错:', error);
+                }
+            });
+        }
+        
+        // 更新生成的卡片的父母SSN数据
+        function updateGeneratedCardParentSSNData(ssn, parentType, validationResult) {
+            const generatedCards = document.querySelectorAll('.person-card[data-person^="{"]');
+            generatedCards.forEach(card => {
+                try {
+                    const personDataStr = card.getAttribute('data-person');
+                    if (personDataStr) {
+                        const personData = JSON.parse(personDataStr.replace(/&#39;/g, "'"));
+                        
+                        // 检查是否有父母信息且匹配SSN
+                        if (personData.parents && personData.parents[parentType] && 
+                            personData.parents[parentType].ssn && 
+                            personData.parents[parentType].ssn.number === ssn) {
+                            
+                            // 更新父母SSN数据
+                            personData.parents[parentType].ssn = {
+                                number: ssn,
+                                verified: validationResult.validation_passed,
+                                status: validationResult.validation_status,
+                                details: validationResult,
+                                error: validationResult.validation_details?.error || null
+                            };
+                            
+                            // 更新卡片的data-person属性
+                            card.setAttribute('data-person', JSON.stringify(personData).replace(/'/g, "&#39;"));
+                            console.log(`${parentType}SSN卡片数据已更新:`, personData.parents[parentType].ssn);
+                        }
+                    }
+                } catch (error) {
+                    console.error('更新父母SSN卡片数据时出错:', error);
+                }
+            });
+                }
+        
+        // 更新卡片的验证状态图标
+        function updateCardVerificationIcon(ssn, parentType = null) {
+            const generatedCards = document.querySelectorAll('.person-card[data-person^="{"]');
+            generatedCards.forEach(card => {
+                try {
+                    const personDataStr = card.getAttribute('data-person');
+                    if (personDataStr) {
+                        const personData = JSON.parse(personDataStr.replace(/&#39;/g, "'"));
+                        
+                        // 检查是否是相关的卡片
+                        let isRelatedCard = false;
+                        if (parentType) {
+                            // 父母SSN验证
+                            if (personData.parents && personData.parents[parentType] && 
+                                personData.parents[parentType].ssn && 
+                                personData.parents[parentType].ssn.number === ssn) {
+                                isRelatedCard = true;
+                            }
+                        } else {
+                            // 本人SSN验证
+                            const cardSSN = typeof personData.ssn === 'object' ? personData.ssn.number : personData.ssn;
+                            if (cardSSN === ssn) {
+                                isRelatedCard = true;
+                            }
+                        }
+                        
+                        if (isRelatedCard) {
+                            // 重新检查验证状态
+                            const isFullyVerified = isCardFullyVerified(personData);
+                            const h3 = card.querySelector('h3');
+                            
+                            if (h3) {
+                                // 移除现有的验证图标
+                                h3.innerHTML = h3.innerHTML.replace(/ <span[^>]*title="所有SSN均已验证通过"[^>]*>✓<\/span>/g, '');
+                                
+                                // 如果完全验证，添加验证图标
+                                if (isFullyVerified) {
+                                    h3.innerHTML += ' <span style="color: #28a745; font-weight: bold;" title="所有SSN均已验证通过">✓</span>';
+                                }
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('更新卡片验证图标时出错:', error);
+                }
+            });
+        }
+        
+        // 备份生成的卡片
+        async function backupGeneratedCard(cardId) {
+            const cardElement = document.getElementById(cardId);
+            if (!cardElement) {
+                showMessage('卡片未找到', 'error');
+                return;
+            }
+
+            try {
+                const personDataStr = cardElement.getAttribute('data-person');
+                const personData = JSON.parse(personDataStr.replace(/&#39;/g, "'"));
+
+                const response = await fetch('/api/backup_person', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(personData)
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showMessage('备份成功！', 'success');
+                    
+                    // 移除备份按钮，因为已经备份了
+                    const backupBtn = cardElement.querySelector('.backup-btn');
+                    if (backupBtn) {
+                        backupBtn.remove();
+                    }
+                    
+                    // 如果只剩删除按钮，调整样式
+                    const actionsDiv = cardElement.querySelector('.card-actions');
+                    if (actionsDiv && actionsDiv.children.length === 1) {
+                        const deleteBtn = actionsDiv.querySelector('.delete-btn');
+                        if (deleteBtn) {
+                            deleteBtn.style.width = '100%';
+                        }
+                    }
+                } else {
+                    showMessage('备份失败: ' + result.error, 'error');
+                }
+            } catch (error) {
+                console.error('备份失败:', error);
+                showMessage('备份失败: ' + error.message, 'error');
+            }
+        }
+
+        // 删除生成的卡片
+        function deleteGeneratedCard(cardId) {
+            if (confirm('确定要删除这个卡片吗？删除后无法恢复。')) {
+                const cardElement = document.getElementById(cardId);
+                if (cardElement) {
+                    cardElement.remove();
+                    showMessage('卡片已删除', 'success');
+                } else {
+                    showMessage('卡片未找到', 'error');
+                }
+            }
+        }
+
+        // 删除历史记录卡片
+        async function deleteHistoryCard(filePath) {
+            if (confirm('确定要删除这个历史记录吗？删除后无法恢复。')) {
+                try {
+                    const response = await fetch('/api/delete_person', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ file_path: filePath })
+                    });
+
+                    const result = await response.json();
+                    if (result.success) {
+                        showMessage('历史记录已删除', 'success');
+                        
+                        // 从页面中移除卡片
+                        const cards = document.querySelectorAll('.person-card');
+                        cards.forEach(card => {
+                            const cardFilePath = card.getAttribute('data-person');
+                            if (cardFilePath === filePath) {
+                                card.remove();
+                            }
+                        });
+                        
+                        // 重新加载历史记录以确保同步
+                        if (document.getElementById('history-tab').classList.contains('active')) {
+                            loadHistory();
+                        }
+                    } else {
+                        showMessage('删除失败: ' + result.error, 'error');
+                    }
+                } catch (error) {
+                    console.error('删除失败:', error);
+                    showMessage('删除失败: ' + error.message, 'error');
+                }
+            }
+        }
+
+        // 更新卡片备注（内存中）
+        function updateCardNote(cardIdOrPath, noteText, isGenerated = true) {
+            if (isGenerated) {
+                // 生成的卡片
+                const cardElement = document.getElementById(cardIdOrPath);
+                if (cardElement) {
+                    try {
+                        const personDataStr = cardElement.getAttribute('data-person');
+                        const personData = JSON.parse(personDataStr.replace(/&#39;/g, "'"));
+                        personData.note = noteText;
+                        cardElement.setAttribute('data-person', JSON.stringify(personData).replace(/'/g, "&#39;"));
+                    } catch (error) {
+                        console.error('更新备注失败:', error);
+                    }
+                }
+            } else {
+                // 历史记录卡片，暂存到全局变量
+                if (!window.cardNotes) {
+                    window.cardNotes = {};
+                }
+                window.cardNotes[cardIdOrPath] = noteText;
+            }
+        }
+
+        // 保存卡片备注
+        async function saveCardNote(cardIdOrPath, isGenerated = true) {
+            try {
+                let personData;
+                let noteText;
+                
+                if (isGenerated) {
+                    // 生成的卡片
+                    const cardElement = document.getElementById(cardIdOrPath);
+                    if (!cardElement) {
+                        showMessage('卡片未找到', 'error');
+                        return;
+                    }
+                    
+                    const personDataStr = cardElement.getAttribute('data-person');
+                    personData = JSON.parse(personDataStr.replace(/&#39;/g, "'"));
+                    noteText = personData.note || '';
+                    
+                    showMessage('备注已保存到内存中，备份时将一并保存', 'success');
+                } else {
+                    // 历史记录卡片
+                    const response = await fetch(`/api/person_detail?file_path=${encodeURIComponent(cardIdOrPath)}`);
+                    const result = await response.json();
+                    
+                    if (!result.success) {
+                        showMessage('获取人员数据失败', 'error');
+                        return;
+                    }
+                    
+                    personData = result.person;
+                    noteText = window.cardNotes ? (window.cardNotes[cardIdOrPath] || '') : '';
+                    personData.note = noteText;
+                    
+                    // 保存到文件
+                    const saveResponse = await fetch('/api/update_person_note', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            file_path: cardIdOrPath,
+                            note: noteText
+                        })
+                    });
+                    
+                    const saveResult = await saveResponse.json();
+                    if (saveResult.success) {
+                        showMessage('备注已保存', 'success');
+                    } else {
+                        showMessage('备注保存失败: ' + saveResult.error, 'error');
+                    }
+                }
+            } catch (error) {
+                console.error('保存备注失败:', error);
+                showMessage('保存备注失败: ' + error.message, 'error');
+            }
+        }
+
+        // 复制卡片数据
+        async function copyCardData(cardIdOrPath, format, isGenerated = true) {
+            try {
+                let personData;
+                
+                if (isGenerated) {
+                    // 生成的卡片
+                    const cardElement = document.getElementById(cardIdOrPath);
+                    if (!cardElement) {
+                        showMessage('卡片未找到', 'error');
+                        return;
+                    }
+                    
+                    const personDataStr = cardElement.getAttribute('data-person');
+                    personData = JSON.parse(personDataStr.replace(/&#39;/g, "'"));
+                } else {
+                    // 历史记录卡片
+                    const response = await fetch(`/api/person_detail?file_path=${encodeURIComponent(cardIdOrPath)}`);
+                    const result = await response.json();
+                    
+                    if (!result.success) {
+                        showMessage('获取人员数据失败', 'error');
+                        return;
+                    }
+                    
+                    personData = result.person;
+                    
+                    // 如果有暂存的备注，更新到数据中
+                    if (window.cardNotes && window.cardNotes[cardIdOrPath]) {
+                        personData.note = window.cardNotes[cardIdOrPath];
+                    }
+                }
+                
+                let textString = '';
+                
+                if (format === 'json') {
+                    // 按照卡片显示顺序重新组织JSON结构
+                    const orderedPerson = {
+                        name: personData.name,
+                        gender: personData.gender,
+                        birthday: personData.birthday,
+                        country: personData.country,
+                        state: personData.state,
+                        phone: personData.phone,
+                        email: personData.email,
+                        address: personData.address,
+                        ssn: personData.ssn,
+                        education: personData.education
+                    };
+                    
+                    // 如果有备注，添加
+                    if (personData.note) {
+                        orderedPerson.note = personData.note;
+                    }
+                    
+                    // 如果有父母信息，添加到最后
+                    if (personData.parents) {
+                        orderedPerson.parents = personData.parents;
+                    }
+                    
+                    // 如果有state_info，添加到最后
+                    if (personData.state_info) {
+                        orderedPerson.state_info = personData.state_info;
+                    }
+                    
+                    textString = JSON.stringify(orderedPerson, null, 2);
+                } else if (format === 'txt') {
+                    // 使用后端的text格式化功能
+                    try {
+                        const response = await fetch('/api/format_text', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(personData)
+                        });
+                        
+                        const result = await response.json();
+                        if (result.success) {
+                            textString = result.text;
+                        } else {
+                            throw new Error(result.error);
+                        }
+                    } catch (error) {
+                        console.error('格式化文本失败:', error);
+                        showMessage('格式化文本失败，请重试', 'error');
+                        return;
+                    }
+                }
+                
+                navigator.clipboard.writeText(textString).then(() => {
+                    showMessage(`信息已复制到剪贴板！（${format === 'json' ? 'JSON' : '文本'}格式）`, 'success');
+                }).catch(err => {
+                    console.error('复制失败:', err);
+                    showMessage('复制失败，请手动选择文本复制', 'error');
+                });
+                
+            } catch (error) {
+                console.error('复制数据失败:', error);
+                showMessage('复制数据失败: ' + error.message, 'error');
+            }
+        }
+
+        // 随机替换SSN
+        async function replaceSsnRandom(cardIdOrPath, targetPath, isGenerated) {
+            // 立即更新按钮状态为"替换中"
+            const replaceBtn = event.target;
+            const originalText = replaceBtn.textContent;
+            replaceBtn.textContent = '替换中...';
+            replaceBtn.disabled = true;
+            replaceBtn.style.background = '#6c757d';
+            
+            try {
+                if (isGenerated) {
+                    // 生成的卡片：在内存中替换SSN
+                    if (!window.currentPersonData) {
+                        showMessage('无法获取人员数据', 'error');
+                        // 恢复按钮状态
+                        replaceBtn.textContent = originalText;
+                        replaceBtn.disabled = false;
+                        replaceBtn.style.background = '#fd7e14';
+                        return;
+                    }
+                    
+                    showMessage('正在随机生成新的SSN...', 'info', true);
+                    
+                    const personData = window.currentPersonData;
+                    // 保存替换前的SSN号用于匹配卡片
+                    let oldSSNNumber;
+                    if (targetPath === 'ssn') {
+                        oldSSNNumber = personData.ssn.number;
+                    } else if (targetPath === 'parents.father.ssn') {
+                        oldSSNNumber = personData.parents.father.ssn.number;
+                    } else if (targetPath === 'parents.mother.ssn') {
+                        oldSSNNumber = personData.parents.mother.ssn.number;
+                    }
+                    
+                    // 生成新的SSN（调用后端生成器）
+                    const response = await fetch('/api/generate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            country: personData.country,
+                            state: personData.state,
+                            count: 1,
+                            enable_ssn_validation: false // 随机替换不需要验证
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success && result.people.length > 0) {
+                        const newSSN = result.people[0].ssn;
+                        
+                        // 更新当前人员数据中的SSN
+                        if (targetPath === 'ssn') {
+                            window.currentPersonData.ssn = newSSN;
+                        } else if (targetPath === 'parents.father.ssn') {
+                            window.currentPersonData.parents.father.ssn = newSSN;
+                        } else if (targetPath === 'parents.mother.ssn') {
+                            window.currentPersonData.parents.mother.ssn = newSSN;
+                        }
+                        
+                        // 如果有对应的卡片，也更新卡片
+                        const cards = document.querySelectorAll('.person-card');
+                        cards.forEach(card => {
+                            const dataAttr = card.getAttribute('data-person');
+                            if (dataAttr && dataAttr.startsWith('{')) {
+                                try {
+                                    const cardData = JSON.parse(dataAttr.replace(/&#39;/g, "'"));
+                                    // 使用更精确的匹配逻辑
+                                    let shouldUpdate = false;
+                                    
+                                    if (targetPath === 'ssn' && cardData.ssn && cardData.ssn.number === oldSSNNumber) {
+                                        cardData.ssn = newSSN;
+                                        shouldUpdate = true;
+                                    } else if (targetPath === 'parents.father.ssn' && cardData.parents && cardData.parents.father && 
+                                             cardData.parents.father.ssn && cardData.parents.father.ssn.number === oldSSNNumber) {
+                                        cardData.parents.father.ssn = newSSN;
+                                        shouldUpdate = true;
+                                    } else if (targetPath === 'parents.mother.ssn' && cardData.parents && cardData.parents.mother && 
+                                             cardData.parents.mother.ssn && cardData.parents.mother.ssn.number === oldSSNNumber) {
+                                        cardData.parents.mother.ssn = newSSN;
+                                        shouldUpdate = true;
+                                    }
+                                    
+                                    if (shouldUpdate) {
+                                        card.setAttribute('data-person', JSON.stringify(cardData).replace(/'/g, "&#39;"));
+                                        // 只有本人SSN才更新卡片显示
+                                        if (targetPath === 'ssn') {
+                                            updateCardSSNDisplay(card, newSSN);
+                                        }
+                                        console.log('卡片数据已更新:', cardData);
+                                    }
+                                } catch (e) { 
+                                    console.error('更新卡片数据失败:', e);
+                                }
+                            }
+                        });
+                        
+                        // 重新显示详情
+                        displayPersonDetail(window.currentPersonData);
+                        
+                        // 更新卡片的验证状态图标
+                        updateCardVerificationIcon(newSSN.number);
+                        
+                        showMessage(`SSN已随机替换为: ${newSSN.number}`, 'success', true);
+                        // 成功后不需要恢复按钮，因为会重新渲染
+                    } else {
+                        showMessage('生成新SSN失败，请重试', 'error', true);
+                        // 恢复按钮状态
+                        replaceBtn.textContent = originalText;
+                        replaceBtn.disabled = false;
+                        replaceBtn.style.background = '#fd7e14';
+                    }
+                } else {
+                    // 历史记录卡片：调用后端API
+                    showMessage('正在随机替换SSN...', 'info', true);
+                    
+                    const response = await fetch('/api/replace_ssn_random', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            file_path: cardIdOrPath,
+                            target_path: targetPath
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        showMessage(`SSN已随机替换为: ${result.new_ssn}`, 'success', true);
+                        
+                        // 重新加载详情
+                        if (window.currentPersonFilePath) {
+                            showPersonDetail(window.currentPersonFilePath, false);
+                        }
+                        
+                        // 重新加载历史记录以反映更改
+                        if (document.getElementById('history-tab').classList.contains('active')) {
+                            loadHistory();
+                        }
+                    } else {
+                        showMessage('SSN替换失败: ' + result.error, 'error', true);
+                        // 恢复按钮状态
+                        replaceBtn.textContent = originalText;
+                        replaceBtn.disabled = false;
+                        replaceBtn.style.background = '#fd7e14';
+                    }
+                }
+                
+            } catch (error) {
+                console.error('SSN替换失败:', error);
+                showMessage('SSN替换失败: ' + error.message, 'error', true);
+                // 恢复按钮状态
+                replaceBtn.textContent = originalText;
+                replaceBtn.disabled = false;
+                replaceBtn.style.background = '#fd7e14';
+            }
+        }
+
+        // 在线验证替换SSN
+        async function replaceSsnValidated(cardIdOrPath, targetPath, isGenerated) {
+            // 立即更新按钮状态为"验证替换中"
+            const replaceBtn = event.target;
+            const originalText = replaceBtn.textContent;
+            replaceBtn.textContent = '验证替换中...';
+            replaceBtn.disabled = true;
+            replaceBtn.style.background = '#6c757d';
+            
+            try {
+                if (isGenerated) {
+                    // 生成的卡片：使用在线验证生成新SSN
+                    if (!window.currentPersonData) {
+                        showMessage('无法获取人员数据', 'error');
+                        // 恢复按钮状态
+                        replaceBtn.textContent = originalText;
+                        replaceBtn.disabled = false;
+                        replaceBtn.style.background = '#6f42c1';
+                        return;
+                    }
+                    
+                    showMessage('正在在线验证生成新的SSN，这可能需要几分钟...', 'info', true);
+                    
+                    const personData = window.currentPersonData;
+                    // 保存替换前的SSN号用于匹配卡片
+                    let oldSSNNumber;
+                    if (targetPath === 'ssn') {
+                        oldSSNNumber = personData.ssn.number;
+                    } else if (targetPath === 'parents.father.ssn') {
+                        oldSSNNumber = personData.parents.father.ssn.number;
+                    } else if (targetPath === 'parents.mother.ssn') {
+                        oldSSNNumber = personData.parents.mother.ssn.number;
+                    }
+                    
+                    // 生成新的验证通过的SSN（调用后端生成器）
+                    const response = await fetch('/api/generate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            country: personData.country,
+                            state: personData.state,
+                            count: 1,
+                            enable_ssn_validation: true // 验证替换需要在线验证
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success && result.people.length > 0) {
+                        const newSSN = result.people[0].ssn;
+                        
+                        // 更新当前人员数据中的SSN
+                        if (targetPath === 'ssn') {
+                            window.currentPersonData.ssn = newSSN;
+                        } else if (targetPath === 'parents.father.ssn') {
+                            window.currentPersonData.parents.father.ssn = newSSN;
+                        } else if (targetPath === 'parents.mother.ssn') {
+                            window.currentPersonData.parents.mother.ssn = newSSN;
+                        }
+                        
+                        // 如果有对应的卡片，也更新卡片
+                        const cards = document.querySelectorAll('.person-card');
+                        cards.forEach(card => {
+                            const dataAttr = card.getAttribute('data-person');
+                            if (dataAttr && dataAttr.startsWith('{')) {
+                                try {
+                                    const cardData = JSON.parse(dataAttr.replace(/&#39;/g, "'"));
+                                    // 使用更精确的匹配逻辑
+                                    let shouldUpdate = false;
+                                    
+                                    if (targetPath === 'ssn' && cardData.ssn && cardData.ssn.number === oldSSNNumber) {
+                                        cardData.ssn = newSSN;
+                                        shouldUpdate = true;
+                                    } else if (targetPath === 'parents.father.ssn' && cardData.parents && cardData.parents.father && 
+                                             cardData.parents.father.ssn && cardData.parents.father.ssn.number === oldSSNNumber) {
+                                        cardData.parents.father.ssn = newSSN;
+                                        shouldUpdate = true;
+                                    } else if (targetPath === 'parents.mother.ssn' && cardData.parents && cardData.parents.mother && 
+                                             cardData.parents.mother.ssn && cardData.parents.mother.ssn.number === oldSSNNumber) {
+                                        cardData.parents.mother.ssn = newSSN;
+                                        shouldUpdate = true;
+                                    }
+                                    
+                                    if (shouldUpdate) {
+                                        card.setAttribute('data-person', JSON.stringify(cardData).replace(/'/g, "&#39;"));
+                                        // 只有本人SSN才更新卡片显示
+                                        if (targetPath === 'ssn') {
+                                            updateCardSSNDisplay(card, newSSN);
+                                        }
+                                        console.log('卡片数据已更新:', cardData);
+                                    }
+                                } catch (e) { 
+                                    console.error('更新卡片数据失败:', e);
+                                }
+                            }
+                        });
+                        
+                        // 重新显示详情
+                        displayPersonDetail(window.currentPersonData);
+                        
+                        // 更新卡片的验证状态图标
+                        updateCardVerificationIcon(newSSN.number);
+                        
+                        showMessage(`SSN已在线验证并替换为: ${newSSN.number}`, 'success', true);
+                        // 成功后不需要恢复按钮，因为会重新渲染
+                    } else {
+                        showMessage('生成验证通过的SSN失败: ' + (result.error || '请重试'), 'error', true);
+                        // 恢复按钮状态
+                        replaceBtn.textContent = originalText;
+                        replaceBtn.disabled = false;
+                        replaceBtn.style.background = '#6f42c1';
+                    }
+                } else {
+                    // 历史记录卡片：调用后端API
+                    showMessage('正在在线验证替换SSN，这可能需要几分钟...', 'info', true);
+                    
+                    const response = await fetch('/api/replace_ssn_validated', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            file_path: cardIdOrPath,
+                            target_path: targetPath
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        showMessage(`SSN已在线验证并替换为: ${result.new_ssn}`, 'success', true);
+                        
+                        // 重新加载详情
+                        if (window.currentPersonFilePath) {
+                            showPersonDetail(window.currentPersonFilePath, false);
+                        }
+                        
+                        // 重新加载历史记录以反映更改
+                        if (document.getElementById('history-tab').classList.contains('active')) {
+                            loadHistory();
+                        }
+                    } else {
+                        showMessage('SSN验证替换失败: ' + result.error, 'error', true);
+                        // 恢复按钮状态
+                        replaceBtn.textContent = originalText;
+                        replaceBtn.disabled = false;
+                        replaceBtn.style.background = '#6f42c1';
+                    }
+                }
+                
+            } catch (error) {
+                console.error('SSN验证替换失败:', error);
+                showMessage('SSN验证替换失败: ' + error.message, 'error', true);
+                // 恢复按钮状态
+                replaceBtn.textContent = originalText;
+                replaceBtn.disabled = false;
+                replaceBtn.style.background = '#6f42c1';
+            }
+        }
+
+        // 更新卡片中的SSN显示
+        function updateCardSSNDisplay(cardElement, newSSNInfo) {
+            console.log('正在更新卡片SSN显示:', newSSNInfo);
+            
+            // 查找包含"社保号"的div元素
+            const personInfoDivs = cardElement.querySelectorAll('.person-info div');
+            let ssnDiv = null;
+            
+            // 遍历所有div，找到包含"社保号"的那个
+            personInfoDivs.forEach(div => {
+                const spans = div.querySelectorAll('span');
+                if (spans.length >= 2 && spans[0].textContent.includes('社保号')) {
+                    ssnDiv = div;
+                }
+            });
+            
+            if (ssnDiv) {
+                const ssnSpan = ssnDiv.querySelector('span:last-child');
+                if (ssnSpan) {
+                    // 获取新的状态信息
+                    const statusInfo = getSSNStatusInfo(newSSNInfo);
+                    const ssnStatusIcon = statusInfo.icon ? `<span style="color: ${statusInfo.color}; font-weight: bold;" title="${statusInfo.desc}">${statusInfo.icon}</span>` : '';
+                    
+                    // 更新SSN显示
+                    ssnSpan.innerHTML = `${newSSNInfo.number}${ssnStatusIcon ? ' ' + ssnStatusIcon : ''}`;
+                    console.log('SSN显示已更新为:', newSSNInfo.number);
+                } else {
+                    console.error('未找到SSN显示的span元素');
+                }
+            } else {
+                console.error('未找到包含社保号的div元素');
+            }
         }
     </script>
 </body>
