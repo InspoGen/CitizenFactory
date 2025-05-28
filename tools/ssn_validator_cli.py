@@ -256,7 +256,7 @@ def main():
     if args.ssn:
         # 单个SSN验证
         if not args.birth_date:
-            print("错误：验证SSN时必须提供出生日期", file=sys.stderr)
+            print("错误: 验证SSN时必须提供出生日期", file=sys.stderr)
             sys.exit(1)
         
         result = validator.validate_ssn_comprehensive(
@@ -283,7 +283,7 @@ def main():
                 
                 parts = line.split(',')
                 if len(parts) < 2:
-                    print(f"警告：第{i}行格式不正确，跳过: {line}", file=sys.stderr)
+                    print(f"警告: 第{i}行格式不正确，跳过: {line}", file=sys.stderr)
                     continue
                 
                 ssn = parts[0].strip()
@@ -309,10 +309,10 @@ def main():
                 print(f"无效: {len(results)-valid_count} 条")
                 
         except FileNotFoundError:
-            print(f"错误：找不到文件 {args.batch}", file=sys.stderr)
+            print(f"错误: 找不到文件 {args.batch}", file=sys.stderr)
             sys.exit(1)
         except Exception as e:
-            print(f"错误：读取文件时发生异常: {e}", file=sys.stderr)
+            print(f"错误: 读取文件时发生异常: {e}", file=sys.stderr)
             sys.exit(1)
 
 

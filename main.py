@@ -243,7 +243,7 @@ def main():
     # 处理SSN验证选项
     if args.validate_ssn:
         if not args.validate_birth_date:
-            print("错误：验证SSN时必须提供出生日期 (--validate-birth-date)", file=sys.stderr)
+            print("错误: 验证SSN时必须提供出生日期 (--validate-birth-date)", file=sys.stderr)
             sys.exit(1)
         
         try:
@@ -254,7 +254,7 @@ def main():
             # 解析SSN
             ssn_digits = re.sub(r'[^0-9]', '', args.validate_ssn)
             if len(ssn_digits) != 9:
-                print(f"错误：SSN必须是9位数字，当前为 {len(ssn_digits)} 位", file=sys.stderr)
+                print(f"错误: SSN必须是9位数字，当前为 {len(ssn_digits)} 位", file=sys.stderr)
                 sys.exit(1)
             
             area = int(ssn_digits[:3])
@@ -270,7 +270,7 @@ def main():
                 birth_month = int(parts[1])
                 birth_day = int(parts[2])
             except ValueError as e:
-                print(f"错误：生日格式不正确: {e}", file=sys.stderr)
+                print(f"错误: 生日格式不正确: {e}", file=sys.stderr)
                 sys.exit(1)
             
             # 基础格式验证
@@ -500,6 +500,8 @@ def main():
 
     except Exception as e:
         print(f"生成失败: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 

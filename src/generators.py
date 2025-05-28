@@ -743,7 +743,7 @@ class PersonGenerator:
             country: 国家代码
             state: 州/地区代码
             child_birth_year: 孩子出生年份
-            child_address: 孩子地址
+            child_address: 孩子地址（用于确定州）
             last_name: 姓氏
 
         Returns:
@@ -752,16 +752,21 @@ class PersonGenerator:
         if not parents_option or parents_option == "none":
             return None
 
+        # 父母在相同的州内生成新的随机地址
+        # 使用孩子的州，但生成不同的地址
+        parent_state = child_address["state"] if child_address else state
+        parent_address = self.generate_address(country, parent_state)
+
         parents_info = {}
 
         if parents_option in ["father", "both"]:
             father_info = self._generate_parent(
-                "male", country, state, child_birth_year, child_address, last_name)
+                "male", country, parent_state, child_birth_year, parent_address, last_name)
             parents_info["father"] = father_info
 
         if parents_option in ["mother", "both"]:
             mother_info = self._generate_parent(
-                "female", country, state, child_birth_year, child_address, last_name)
+                "female", country, parent_state, child_birth_year, parent_address, last_name)
             parents_info["mother"] = mother_info
 
         return parents_info
@@ -808,7 +813,7 @@ class PersonGenerator:
             "address": address,
             "phone": self.generate_phone(country, state),
             "email": self.generate_email(name, birthday),
-            "education": self.generate_education(country, state, education, birth_year),
+            "education": self.generate_education(country, state, education or "none", birth_year),
             "parents": self.generate_parents(parents, country, state, birth_year, address, name["last_name"]),
             "ssn": {
                 "number": ssn,

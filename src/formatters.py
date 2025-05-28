@@ -102,8 +102,8 @@ class OutputFormatter:
         # 基本信息
         lines.append("=== 基本信息 ===")
         name = person_data.get("name", {})
-        lines.append(f"姓名 (Firstname Lastname)：{name.get('first_name', '')} {name.get('last_name', '')}")
-        lines.append(f"性别：{'男' if person_data.get('gender') == 'male' else '女'}")
+        lines.append(f"姓名 (Firstname Lastname): {name.get('first_name', '')} {name.get('last_name', '')}")
+        lines.append(f"性别: {'男' if person_data.get('gender') == 'male' else '女'}")
         
         # 生日和年龄
         birthday = person_data.get("birthday", "")
@@ -117,27 +117,27 @@ class OutputFormatter:
             if current_date.month < birth_month or (current_date.month == birth_month and current_date.day < birth_day):
                 age -= 1
             
-            lines.append(f"生日 (yyyymmdd)：{birthday} ({birth_year}年{birth_month}月{birth_day}日)")
-            lines.append(f"年龄：{age}岁")
+            lines.append(f"生日 (yyyymmdd): {birthday} ({birth_year}年{birth_month}月{birth_day}日)")
+            lines.append(f"年龄: {age}岁")
         
-        lines.append(f"国家：{person_data.get('country', '')}")
+        lines.append(f"国家: {person_data.get('country', '')}")
         
         # 州信息
         state_info = person_data.get("state_info", {})
         if state_info:
-            lines.append(f"州/地区：{person_data.get('state', '')} {state_info.get('name', '')} {state_info.get('chinese_name', '')}")
+            lines.append(f"州/地区: {person_data.get('state', '')} {state_info.get('name', '')} {state_info.get('chinese_name', '')}")
         else:
-            lines.append(f"州/地区：{person_data.get('state', '')}")
+            lines.append(f"州/地区: {person_data.get('state', '')}")
         
         # 联系信息
         lines.append("\n=== 联系信息 ===")
-        lines.append(f"电话：{person_data.get('phone', '')}")
-        lines.append(f"电话（纯数字）：{OutputFormatter._remove_non_digits(person_data.get('phone', ''))}")
-        lines.append(f"邮箱：{person_data.get('email', '')}")
+        lines.append(f"电话: {person_data.get('phone', '')}")
+        lines.append(f"电话（纯数字）: {OutputFormatter._remove_non_digits(person_data.get('phone', ''))}")
+        lines.append(f"邮箱: {person_data.get('email', '')}")
         
         # 地址信息
         address = person_data.get("address", {})
-        lines.append(f"地址：{address.get('full_address', '')}")
+        lines.append(f"地址: {address.get('full_address', '')}")
         
         # SSN信息
         lines.append("\n=== 身份信息 ===")
@@ -147,65 +147,65 @@ class OutputFormatter:
         else:
             ssn_number = ssn_info if ssn_info else 'N/A'
         
-        lines.append(f"社保号：{ssn_number}")
-        lines.append(f"社保号（纯数字）：{OutputFormatter._remove_non_digits(ssn_number)}")
+        lines.append(f"社保号: {ssn_number}")
+        lines.append(f"社保号（纯数字）: {OutputFormatter._remove_non_digits(ssn_number)}")
         
         # SSN验证状态
         status_info = OutputFormatter._get_ssn_status_info(ssn_info)
-        lines.append(f"SSN验证状态：{status_info['icon']} {status_info['desc']}")
+        lines.append(f"SSN验证状态: {status_info['icon']} {status_info['desc']}")
         
         # 教育信息
         education = person_data.get("education", {})
         education_level = education.get("education_level", "none")
         
         lines.append("\n=== 教育信息 ===")
-        lines.append(f"教育水平：{OutputFormatter._get_education_level_chinese(education_level)}")
+        lines.append(f"教育水平: {OutputFormatter._get_education_level_chinese(education_level)}")
         
         if education_level == "high_school" or education_level == "college":
             high_school = education.get("high_school", {})
             if high_school:
-                lines.append(f"\n高中信息：")
-                lines.append(f"学校名称：{high_school.get('name', '')}")
-                lines.append(f"学校简称：{high_school.get('abbreviation', '')}")
-                lines.append(f"学校地址：{high_school.get('address', '')}")
+                lines.append(f"\n高中信息:")
+                lines.append(f"学校名称: {high_school.get('name', '')}")
+                lines.append(f"学校简称: {high_school.get('abbreviation', '')}")
+                lines.append(f"学校地址: {high_school.get('address', '')}")
                 
                 start_date = high_school.get("start_date", "")
                 graduation_date = high_school.get("graduation_date", "")
                 if start_date and len(start_date) == 6:
                     start_year = start_date[:4]
                     start_month = start_date[4:6]
-                    lines.append(f"入学时间 (yyyymm)：{start_date} ({start_year}年{start_month}月)")
+                    lines.append(f"入学时间 (yyyymm): {start_date} ({start_year}年{start_month}月)")
                 if graduation_date and len(graduation_date) == 6:
                     grad_year = graduation_date[:4]
                     grad_month = graduation_date[4:6]
-                    lines.append(f"毕业时间 (yyyymm)：{graduation_date} ({grad_year}年{grad_month}月)")
+                    lines.append(f"毕业时间 (yyyymm): {graduation_date} ({grad_year}年{grad_month}月)")
         
         if education_level == "college":
             college = education.get("college", {})
             if college:
-                lines.append(f"\n大学信息：")
-                lines.append(f"学校名称：{college.get('name', '')}")
-                lines.append(f"学校简称：{college.get('abbreviation', '')}")
-                lines.append(f"学校地址：{college.get('address', '')}")
+                lines.append(f"\n大学信息:")
+                lines.append(f"学校名称: {college.get('name', '')}")
+                lines.append(f"学校简称: {college.get('abbreviation', '')}")
+                lines.append(f"学校地址: {college.get('address', '')}")
                 
                 start_date = college.get("start_date", "")
                 graduation_date = college.get("graduation_date", "")
                 if start_date and len(start_date) == 6:
                     start_year = start_date[:4]
                     start_month = start_date[4:6]
-                    lines.append(f"入学时间 (yyyymm)：{start_date} ({start_year}年{start_month}月)")
+                    lines.append(f"入学时间 (yyyymm): {start_date} ({start_year}年{start_month}月)")
                 if graduation_date and len(graduation_date) == 6:
                     grad_year = graduation_date[:4]
                     grad_month = graduation_date[4:6]
-                    lines.append(f"毕业时间 (yyyymm)：{graduation_date} ({grad_year}年{grad_month}月)")
+                    lines.append(f"毕业时间 (yyyymm): {graduation_date} ({grad_year}年{grad_month}月)")
         
         # 父母信息
         parents = person_data.get("parents", {})
-        if parents.get("father"):
+        if parents and parents.get("father"):
             lines.append(f"\n=== 父亲信息 ===")
             lines.append(OutputFormatter._format_parent_text(parents["father"], "父亲"))
         
-        if parents.get("mother"):
+        if parents and parents.get("mother"):
             lines.append(f"\n=== 母亲信息 ===")
             lines.append(OutputFormatter._format_parent_text(parents["mother"], "母亲"))
         
@@ -231,7 +231,7 @@ class OutputFormatter:
     def _format_parent_text(parent_data: Dict[str, Any], relationship: str) -> str:
         """格式化父母信息为文本"""
         lines = []
-        lines.append(f"姓名 (Firstname Lastname)：{parent_data['name']['first_name']} {parent_data['name']['last_name']}")
+        lines.append(f"姓名 (Firstname Lastname): {parent_data['name']['first_name']} {parent_data['name']['last_name']}")
         
         # 计算年龄
         birthday = parent_data["birthday"]
@@ -244,12 +244,12 @@ class OutputFormatter:
         if current_date.month < birth_month or (current_date.month == birth_month and current_date.day < birth_day):
             age -= 1
         
-        lines.append(f"生日 (yyyymmdd)：{birthday} ({birth_year}年{birth_month}月{birth_day}日)")
-        lines.append(f"年龄：{age}岁")
-        lines.append(f"电话：{parent_data['phone']}")
-        lines.append(f"电话（纯数字）：{OutputFormatter._remove_non_digits(parent_data['phone'])}")
-        lines.append(f"邮箱：{parent_data['email']}")
-        lines.append(f"地址：{parent_data['address']['full_address']}")
+        lines.append(f"生日 (yyyymmdd): {birthday} ({birth_year}年{birth_month}月{birth_day}日)")
+        lines.append(f"年龄: {age}岁")
+        lines.append(f"电话: {parent_data['phone']}")
+        lines.append(f"电话（纯数字）: {OutputFormatter._remove_non_digits(parent_data['phone'])}")
+        lines.append(f"邮箱: {parent_data['email']}")
+        lines.append(f"地址: {parent_data['address']['full_address']}")
         
         # SSN信息
         ssn_info = parent_data.get('ssn', {})
@@ -258,12 +258,12 @@ class OutputFormatter:
         else:
             ssn_number = ssn_info if ssn_info else 'N/A'
         
-        lines.append(f"社保号：{ssn_number}")
-        lines.append(f"社保号（纯数字）：{OutputFormatter._remove_non_digits(ssn_number)}")
+        lines.append(f"社保号: {ssn_number}")
+        lines.append(f"社保号（纯数字）: {OutputFormatter._remove_non_digits(ssn_number)}")
         
         # SSN验证状态
         status_info = OutputFormatter._get_ssn_status_info(ssn_info)
-        lines.append(f"SSN验证状态：{status_info['icon']} {status_info['desc']}")
+        lines.append(f"SSN验证状态: {status_info['icon']} {status_info['desc']}")
         
         return "\n".join(lines)
 
